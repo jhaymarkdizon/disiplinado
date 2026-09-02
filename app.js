@@ -6,7 +6,7 @@
 const SUPABASE_URL = 'https://vwyiygetdbnibwlfpcjy.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_LZoYjXyaRMP0pMWWFS5Qzg_14DDSiYT';
 
-const supabaseClient = window.supabase.createClient(
+const db = window.supabase.createClient(
   SUPABASE_URL,
   SUPABASE_ANON_KEY
 );
@@ -79,7 +79,7 @@ let appState = null;
 
 async function loadUserState(userId) {
   try {
-    const { data, error } = await supabaseClient
+    const { data, error } = await db
       .from('user_profiles')
       .select('state')
       .eq('id', userId)
@@ -97,7 +97,7 @@ async function loadUserState(userId) {
 async function saveState() {
   if (!currentUser) return;
   
-  await supabaseClient
+  await db
     .from('user_profiles')
     .upsert({ id: currentUser.id, state: appState });
 }
@@ -1344,7 +1344,7 @@ function setupAuthViews() {
     const email = document.getElementById('signup-email').value.trim();
     const password = document.getElementById('signup-password').value;
 
-    const { data, error } = await supabaseClient.auth.signUp({
+    const { data, error } = await db.auth.signUp({
       email,
       password,
       options: {
@@ -1358,7 +1358,7 @@ function setupAuthViews() {
     }
 
     if (data.user) {
-      await supabaseClient.from('user_profiles').insert([
+      await db.from('user_profiles').insert([
         { id: data.user.id, display_name: name, state: DEFAULT_STATE_TEMPLATE }
       ]);
       loginUser(data.user);
@@ -1372,7 +1372,7 @@ function setupAuthViews() {
 
     const email = document.getElementById('forgot-identifier').value.trim();
 
-    const { error } = await supabaseClient.auth.resetPasswordForEmail(email);
+    const { error } = await db.auth.resetPasswordForEmail(email);
 
     if (error) {
       showAuthAlert(error.message);
@@ -1383,7 +1383,7 @@ function setupAuthViews() {
   });
 
   document.getElementById('signout-btn').addEventListener('click', async () => {
-    await supabaseClient.auth.signOut();
+    await db.auth.signOut();
     currentUser = null;
     appState = null;
     checkAuthSession();
@@ -1415,7 +1415,7 @@ function updateNavUserProfile(user) {
 
 async function checkAuthSession() {
   const authGate = document.getElementById('auth-gate');
-  const { data: { session } } = await supabaseClient.auth.getSession();
+  const { data: { session } } = await db.auth.getSession();
   
   if (session && session.user) {
     currentUser = session.user;
