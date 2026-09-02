@@ -6,12 +6,10 @@
 const SUPABASE_URL = 'https://vwyiygetdbnibwlfpcjy.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_LZoYjXyaRMP0pMWWFS5Qzg_14DDSiYT';
 
-supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'
-];
+const supabaseClient = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY
+);
 
 const CATEGORIES = [
   'Family & Giving',
@@ -65,7 +63,7 @@ let appState = null;
 
 async function loadUserState(userId) {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('user_profiles')
       .select('state')
       .eq('id', userId)
@@ -83,7 +81,7 @@ async function loadUserState(userId) {
 async function saveState() {
   if (!currentUser) return;
   
-  await supabase
+  await supabaseClient
     .from('user_profiles')
     .upsert({ id: currentUser.id, state: appState });
 }
@@ -1330,7 +1328,7 @@ function setupAuthViews() {
     const email = document.getElementById('signup-email').value.trim();
     const password = document.getElementById('signup-password').value;
 
-    const { data, error } = await supabase.auth.signUp({
+    const { data, error } = await supabaseClient.auth.signUp({
       email,
       password,
       options: {
@@ -1344,7 +1342,7 @@ function setupAuthViews() {
     }
 
     if (data.user) {
-      await supabase.from('user_profiles').insert([
+      await supabaseClient.from('user_profiles').insert([
         { id: data.user.id, display_name: name, state: DEFAULT_STATE_TEMPLATE }
       ]);
       loginUser(data.user);
@@ -1358,7 +1356,7 @@ function setupAuthViews() {
 
     const email = document.getElementById('forgot-identifier').value.trim();
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    const { error } = await supabaseClient.auth.resetPasswordForEmail(email);
 
     if (error) {
       showAuthAlert(error.message);
@@ -1369,7 +1367,7 @@ function setupAuthViews() {
   });
 
   document.getElementById('signout-btn').addEventListener('click', async () => {
-    await supabase.auth.signOut();
+    await supabaseClient.auth.signOut();
     currentUser = null;
     appState = null;
     checkAuthSession();
@@ -1401,7 +1399,7 @@ function updateNavUserProfile(user) {
 
 async function checkAuthSession() {
   const authGate = document.getElementById('auth-gate');
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session } } = await supabaseClient.auth.getSession();
   
   if (session && session.user) {
     currentUser = session.user;
