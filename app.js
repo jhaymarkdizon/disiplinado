@@ -4,9 +4,9 @@
 
 // SUPABASE CLIENT INITIALIZATION
 const SUPABASE_URL = 'https://vwyiygetdbnibwlfpcjy.supabase.co';
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const SUPABASE_ANON_KEY = 'sb_publishable_LZoYjXyaRMP0pMWWFS5Qzg_14DDSiYT';
 
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
