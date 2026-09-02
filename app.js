@@ -1497,36 +1497,51 @@ if ('serviceWorker' in navigator) {
       .catch((err) => console.warn('Service Worker registration failed:', err));
   });
 }
-// PWA Install Prompt Listener
+// --- PWA INSTALL HANDLER ---
 let deferredPrompt = null;
-const installBtn = document.getElementById('pwa-install-btn');
 
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredPrompt = e;
-  if (installBtn) {
-    installBtn.classList.remove('hidden');
-  }
 });
 
-if (installBtn) {
-  installBtn.addEventListener('click', async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      installBtn.classList.add('hidden');
+function setupInstallButton() {
+  const installBtn = document.getElementById('pwa-install-btn');
+  if (!installBtn) return;
+
+  installBtn.addEventListener('click', async (e) => {
+    e.preventDefault();
+
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const choiceResult = await deferredPrompt.userChoice;
+      if (choiceResult.outcome === 'accepted') {
+        installBtn.classList.add('hidden');
+      }
+      deferredPrompt = null;
+    } else {
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+      if (isIOS) {
+        alert("To install on iOS:\n1. Tap the Share icon (box with upward arrow ↑) in Safari.\n2. Scroll down and tap 'Add to Home Screen'.");
+      } else {
+        alert("To install on this device:\n1. Click the browser menu (⋮) in the top-right.\n2. Select 'Install Disciplined' or 'Add to Home Screen'.");
+      }
     }
-    deferredPrompt = null;
   });
 }
 
 window.addEventListener('appinstalled', () => {
+  const installBtn = document.getElementById('pwa-install-btn');
   if (installBtn) installBtn.classList.add('hidden');
   deferredPrompt = null;
 });
 
-// Register Service Worker
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', setupInstallButton);
+} else {
+  setupInstallButton();
+}
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').catch((err) => console.warn('SW error:', err));
