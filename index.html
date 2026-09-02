@@ -1,622 +1,604 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <!-- PWA Settings -->
-    <link rel="manifest" href="manifest.json" />
-    <link rel="icon" type="image/svg+xml" href="icon.svg" />
-    <link rel="apple-touch-icon" href="icon.svg" />
-    <meta name="theme-color" content="#059669" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Disciplined" />
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Disciplined Budget Tracker</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            fontFamily: { sans: ['Inter', 'sans-serif'] }
-          }
-        }
-      };
-    </script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js" defer></script>
-    <style>
-      body { background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%); }
-      .card-glow { box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08); }
-      .tab-button.active { background-color: #0f172a; color: white; }
-      .tab-button.inactive { color: #64748b; background: transparent; }
-      .tab-button.inactive:hover { background-color: #f1f5f9; }
-      .hidden { display: none !important; }
-      .glass { background: rgba(255,255,255,0.85); backdrop-filter: blur(12px); }
-      .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
-      .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
-    </style>
-  </head>
-  <body class="font-sans text-slate-800 antialiased min-h-screen">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Disciplined Budget Tracker & Vault</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Chart.js for Visualizations -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
 
-    <div id="auth-gate" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4">
-      <div class="w-full max-w-md rounded-3xl border border-slate-200/80 bg-white p-6 md:p-8 shadow-2xl">
-        <div class="text-center mb-6">
-          <div class="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 p-3 shadow-xl mb-3 border border-emerald-400/30">
-            <svg class="h-full w-full" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M26 18H52C70 18 84 32 84 50C84 68 70 82 52 82H26V18Z" stroke="white" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
-              <rect x="22" y="18" width="9" height="64" rx="4.5" fill="#34d399"/>
-              <circle cx="50" cy="50" r="8" fill="white"/>
-            </svg>
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col selection:bg-emerald-500 selection:text-white">
+
+  <!-- AUTHENTICATION GATE (Visible when unauthenticated) -->
+  <div id="auth-gate" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-4">
+    <div class="w-full max-w-md rounded-3xl bg-white p-8 text-slate-900 shadow-2xl border border-slate-100">
+      <div class="text-center mb-6">
+        <div class="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-600 text-white font-black text-xl shadow-lg mb-3">D</div>
+        <h2 id="auth-title" class="text-2xl font-black tracking-tight text-slate-900">Sign In to Disciplined</h2>
+        <p class="text-xs text-slate-500 mt-1">Your secure financial vault and multi-account ledger</p>
+      </div>
+
+      <div id="auth-alert" class="hidden mb-4 rounded-xl p-3 text-xs font-bold"></div>
+
+      <!-- SIGN IN FORM -->
+      <form id="signin-form" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Email Address</label>
+          <input type="email" id="signin-identifier" required placeholder="name@example.com" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-900 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20">
+        </div>
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-700">Password</label>
+            <button type="button" id="go-forgot-btn" class="text-xs font-bold text-emerald-700 hover:underline">Forgot password?</button>
           </div>
-          <h2 id="auth-title" class="text-2xl font-black text-slate-900 tracking-tight">Sign In to Disciplined</h2>
-          <p id="auth-subtitle" class="text-xs font-semibold text-slate-500 mt-1">Personal Finance & Cashflow Tracker</p>
+          <input type="password" id="signin-password" required placeholder="••••••••" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-900 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20">
+        </div>
+        <button type="submit" class="w-full rounded-xl bg-emerald-600 py-3 text-sm font-bold text-white shadow-lg hover:bg-emerald-500 transition">Sign In to Vault</button>
+        <div class="text-center pt-2">
+          <p class="text-xs text-slate-500 font-medium">Don't have an account? <button type="button" id="go-signup-btn" class="font-bold text-emerald-700 hover:underline">Create Profile</button></p>
+        </div>
+      </form>
+
+      <!-- SIGN UP FORM -->
+      <form id="signup-form" class="space-y-4 hidden">
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Full Name</label>
+          <input type="text" id="signup-name" required placeholder="Juan Dela Cruz" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-900 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20">
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Email Address</label>
+          <input type="email" id="signup-email" required placeholder="name@example.com" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-900 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20">
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Password</label>
+          <input type="password" id="signup-password" required placeholder="At least 6 characters" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-900 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20">
+        </div>
+        <button type="submit" class="w-full rounded-xl bg-emerald-600 py-3 text-sm font-bold text-white shadow-lg hover:bg-emerald-500 transition">Create Account & Vault</button>
+        <div class="text-center pt-2">
+          <p class="text-xs text-slate-500 font-medium">Already registered? <button type="button" id="back-to-signin-btn" class="font-bold text-emerald-700 hover:underline">Sign In</button></p>
+        </div>
+      </form>
+
+      <!-- FORGOT PASSWORD FORM -->
+      <form id="forgot-form" class="space-y-4 hidden">
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Account Email</label>
+          <input type="email" id="forgot-identifier" required placeholder="name@example.com" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-900 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20">
+        </div>
+        <button type="submit" class="w-full rounded-xl bg-emerald-600 py-3 text-sm font-bold text-white shadow-lg hover:bg-emerald-500 transition">Send Reset Instructions</button>
+        <div class="text-center pt-2">
+          <button type="button" id="cancel-forgot-btn" class="text-xs font-bold text-slate-600 hover:underline">Back to Sign In</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- TOP NAVIGATION HEADER -->
+  <header class="sticky top-0 z-40 border-b border-slate-800 bg-slate-950/80 backdrop-blur-md">
+    <div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
+      <div class="flex items-center gap-3">
+        <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 font-black text-white shadow-md">D</div>
+        <div>
+          <h1 class="text-base font-black tracking-tight text-white flex items-center gap-2">Disciplined <span class="rounded-md bg-emerald-500/20 px-2 py-0.5 text-[10px] font-extrabold text-emerald-400 border border-emerald-500/30">Vault 2026</span></h1>
+          <p class="text-[11px] text-slate-400 font-medium">Multi-Account Ledger & Budget Engine</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <!-- Year Selector -->
+        <select id="year-select" class="rounded-xl border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-bold text-slate-200 focus:border-emerald-500 focus:outline-none"></select>
+        <!-- Month Selector -->
+        <select id="month-select" class="rounded-xl border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-bold text-slate-200 focus:border-emerald-500 focus:outline-none"></select>
+        
+        <!-- PWA Install Button -->
+        <button id="pwa-install-btn" class="hidden items-center gap-1 rounded-xl bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-200 hover:bg-slate-700 transition">
+          <i data-lucide="download" class="h-3.5 w-3.5"></i> Install App
+        </button>
+
+        <!-- User Profile Pill & Sign Out -->
+        <div class="flex items-center gap-2 pl-2 border-l border-slate-800">
+          <div id="active-avatar" class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400 font-black text-xs border border-emerald-500/30">U</div>
+          <span id="active-user-name" class="hidden md:inline text-xs font-bold text-slate-200">User</span>
+          <button id="signout-btn" title="Sign Out" class="rounded-lg p-1.5 text-slate-400 hover:bg-rose-500/20 hover:text-rose-400 transition">
+            <i data-lucide="log-out" class="h-4 w-4"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN APP CONTAINER -->
+  <main class="mx-auto max-w-7xl flex-1 px-4 py-6 sm:px-6 w-full space-y-6">
+
+    <!-- SUB-NAVIGATION TABS -->
+    <div class="flex items-center gap-2 border-b border-slate-800 pb-4 overflow-x-auto">
+      <button data-tab="monthly" class="tab-button active rounded-lg px-4 py-2 text-xs font-bold transition">Monthly Budget</button>
+      <button data-tab="annual" class="tab-button inactive rounded-lg px-4 py-2 text-xs font-bold text-slate-400 hover:text-white transition">Annual Overview</button>
+      <button data-tab="accounts" class="tab-button inactive rounded-lg px-4 py-2 text-xs font-bold text-slate-400 hover:text-white transition">Accounts & Credit Cards</button>
+    </div>
+
+    <!-- TAB 1: MONTHLY BUDGET VIEW -->
+    <div id="monthly-view" class="space-y-6">
+
+      <!-- KPI METRIC CARDS -->
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <!-- Total Incomes -->
+        <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-5 shadow-sm">
+          <div class="flex items-center justify-between text-slate-400">
+            <span class="text-xs font-bold uppercase tracking-wider">Total Income</span>
+            <div class="rounded-xl bg-emerald-500/10 p-2.5 text-emerald-400 border border-emerald-500/20">
+              <i data-lucide="wallet" class="h-5 w-5"></i>
+            </div>
+          </div>
+          <div class="mt-4">
+            <h3 id="income-total" class="text-2xl font-black tracking-tight text-white">₱0.00</h3>
+            <p id="income-subtext" class="text-xs font-semibold text-slate-400 mt-1">0 verified stream(s)</p>
+          </div>
         </div>
 
-        <div id="auth-alert" class="hidden mb-4 rounded-xl p-3 text-xs font-bold"></div>
-
-        <form id="signin-form" class="space-y-4">
-          <div>
-            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Username or Email</label>
-            <input id="signin-identifier" type="text" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-semibold focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 transition" placeholder="e.g. jmark or you@email.com" required />
-          </div>
-          <div>
-            <div class="flex items-center justify-between mb-1">
-              <label class="block text-xs font-bold uppercase tracking-wider text-slate-500">Password</label>
-              <button type="button" id="go-forgot-btn" class="text-xs font-bold text-emerald-600 hover:underline">Forgot password?</button>
+        <!-- Total Expenses -->
+        <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-5 shadow-sm">
+          <div class="flex items-center justify-between text-slate-400">
+            <span class="text-xs font-bold uppercase tracking-wider">Itemized Expenses</span>
+            <div class="rounded-xl bg-rose-500/10 p-2.5 text-rose-400 border border-rose-500/20">
+              <i data-lucide="receipt" class="h-5 w-5"></i>
             </div>
-            <input id="signin-password" type="password" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-semibold focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 transition" placeholder="••••••••" required />
           </div>
-          <button type="submit" class="w-full rounded-xl bg-emerald-600 py-3 text-sm font-bold text-white shadow-md hover:bg-emerald-500 transition">Sign In</button>
-          
-          <div class="pt-3 text-center border-t border-slate-100">
-            <p class="text-xs font-semibold text-slate-500">
-              Need an account? 
-              <button type="button" id="go-signup-btn" class="font-bold text-slate-900 hover:text-emerald-600 ml-1">Create Profile</button>
-            </p>
+          <div class="mt-4">
+            <h3 id="expense-total" class="text-2xl font-black tracking-tight text-white">₱0.00</h3>
+            <p id="expense-subtext" class="text-xs font-semibold text-slate-400 mt-1">0 item(s)</p>
           </div>
-        </form>
+        </div>
 
-        <form id="signup-form" class="hidden space-y-4">
-          <div>
-            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Display Name</label>
-            <input id="signup-name" type="text" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-semibold focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 transition" placeholder="e.g. Jay Mark" required />
+        <!-- Total Bills & Dues -->
+        <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-5 shadow-sm">
+          <div class="flex items-center justify-between text-slate-400">
+            <span class="text-xs font-bold uppercase tracking-wider">Bills & Dues</span>
+            <div class="rounded-xl bg-amber-500/10 p-2.5 text-amber-400 border border-amber-500/20">
+              <i data-lucide="calendar-clock" class="h-5 w-5"></i>
+            </div>
           </div>
-          <div>
-            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Username</label>
-            <input id="signup-username" type="text" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-semibold focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 transition" placeholder="e.g. jaymark26" required />
+          <div class="mt-4">
+            <h3 id="bill-total" class="text-2xl font-black tracking-tight text-white">₱0.00</h3>
+            <p id="bill-subtext" class="text-xs font-semibold text-slate-400 mt-1">0 pending bills</p>
           </div>
-          <div>
-            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Email</label>
-            <input id="signup-email" type="email" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-semibold focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 transition" placeholder="name@email.com" required />
-          </div>
-          <div>
-            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Password</label>
-            <input id="signup-password" type="password" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-semibold focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 transition" placeholder="Min. 6 characters" minlength="6" required />
-          </div>
-          <button type="submit" class="w-full rounded-xl bg-slate-900 py-3 text-sm font-bold text-white shadow-md hover:bg-slate-800 transition">Create Account</button>
-          
-          <div class="pt-3 text-center border-t border-slate-100">
-            <button type="button" id="back-to-signin-btn" class="text-xs font-bold text-emerald-600 hover:underline">← Back to Sign In</button>
-          </div>
-        </form>
+        </div>
 
-        <form id="forgot-form" class="hidden space-y-4">
-          <p class="text-xs text-slate-600">Enter your registered username or email along with your new password to reset your profile.</p>
-          <div>
-            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Username / Email</label>
-            <input id="forgot-identifier" type="text" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-semibold focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 transition" placeholder="Your registered account" required />
+        <!-- Net Surplus -->
+        <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-5 shadow-sm">
+          <div class="flex items-center justify-between text-slate-400">
+            <span class="text-xs font-bold uppercase tracking-wider">Net Cash Surplus</span>
+            <div class="rounded-xl bg-indigo-500/10 p-2.5 text-indigo-400 border border-indigo-500/20">
+              <i data-lucide="piggy-bank" class="h-5 w-5"></i>
+            </div>
           </div>
-          <div>
-            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">New Password</label>
-            <input id="forgot-new-password" type="password" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-semibold focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 transition" placeholder="Min. 6 characters" minlength="6" required />
+          <div class="mt-4">
+            <h3 id="net-total" class="text-2xl font-black tracking-tight text-indigo-400">₱0.00</h3>
+            <p id="net-subtext" class="text-xs font-semibold text-slate-400 mt-1">0% net margin</p>
           </div>
-          <button type="submit" class="w-full rounded-xl bg-amber-600 py-3 text-sm font-bold text-white shadow-md hover:bg-amber-500 transition">Reset Password</button>
+        </div>
+      </div>
+
+      <!-- QUICK ACTION TOOLBAR -->
+      <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+        <div class="flex flex-wrap items-center gap-2">
+          <button id="add-income-btn" class="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-emerald-500 transition">
+            <i data-lucide="plus" class="h-4 w-4"></i> Add Income
+          </button>
+          <button id="add-expense-btn" class="flex items-center gap-1.5 rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-rose-500 transition">
+            <i data-lucide="plus" class="h-4 w-4"></i> Add Expense
+          </button>
+          <button id="add-bill-btn" class="flex items-center gap-1.5 rounded-xl bg-amber-600 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-amber-500 transition">
+            <i data-lucide="plus" class="h-4 w-4"></i> Add Bill
+          </button>
+          <button id="add-savings-btn" class="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-indigo-500 transition">
+            <i data-lucide="plus" class="h-4 w-4"></i> Add Savings Goal
+          </button>
+        </div>
+        <button id="add-account-btn" class="flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-xs font-bold text-slate-200 hover:bg-slate-800 transition">
+          <i data-lucide="credit-card" class="h-4 w-4"></i> + Link Card / Bank
+        </button>
+      </div>
+
+      <!-- MAIN GRID CONTENT -->
+      <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        
+        <!-- LEFT 2 COLUMNS: INCOME, EXPENSES, BILLS -->
+        <div class="space-y-6 lg:col-span-2">
           
-          <div class="pt-3 text-center border-t border-slate-100">
-            <button type="button" id="cancel-forgot-btn" class="text-xs font-bold text-slate-600 hover:underline">← Cancel & Back to Sign In</button>
+          <!-- INCOMES SECTION -->
+          <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-6 shadow-sm">
+            <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
+              <h3 class="text-sm font-extrabold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+                <i data-lucide="wallet" class="h-4 w-4 text-emerald-400"></i> Income Streams
+              </h3>
+            </div>
+            <div id="income-list" class="space-y-3">
+              <p class="text-sm text-slate-500 font-medium py-3">No income streams credited this month.</p>
+            </div>
           </div>
-        </form>
+
+          <!-- BILLS & RECURRING DUES -->
+          <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-6 shadow-sm">
+            <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
+              <h3 class="text-sm font-extrabold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+                <i data-lucide="calendar-clock" class="h-4 w-4 text-amber-400"></i> Recurring Bills & Dues
+              </h3>
+              <span class="text-xs font-bold text-slate-400">Rollover enabled for unpaid bills</span>
+            </div>
+            <div id="bill-list" class="space-y-3">
+              <p class="text-sm text-slate-500 font-medium py-3">No recurring dues or bills recorded.</p>
+            </div>
+          </div>
+
+          <!-- ITEMIZED EXPENSES TABLE -->
+          <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-6 shadow-sm">
+            <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
+              <h3 class="text-sm font-extrabold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+                <i data-lucide="receipt" class="h-4 w-4 text-rose-400"></i> Itemized Expenses
+              </h3>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse">
+                <thead>
+                  <tr class="border-b border-slate-800 text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
+                    <th class="px-4 py-3">Category</th>
+                    <th class="px-4 py-3">Description</th>
+                    <th class="px-4 py-3">Account / Card</th>
+                    <th class="px-4 py-3 text-right">Amount</th>
+                    <th class="px-4 py-3 text-center">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="expense-table-body" class="divide-y divide-slate-800/60"></tbody>
+              </table>
+              <div id="expense-empty" class="py-8 text-center">
+                <p class="text-sm font-medium text-slate-500">No itemized expenses recorded yet.</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- RIGHT 1 COLUMN: OVERVIEW PANELS & CHARTS -->
+        <div class="space-y-6">
+          
+          <!-- LIQUIDITY & DEBT SUMMARY PANEL -->
+          <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-6 shadow-sm">
+            <h3 class="text-sm font-extrabold uppercase tracking-wider text-slate-200 mb-4 pb-3 border-b border-slate-800 flex items-center gap-2">
+              <i data-lucide="shield" class="h-4 w-4 text-indigo-400"></i> Account Liquidity
+            </h3>
+            
+            <div class="space-y-4">
+              <div>
+                <div class="flex justify-between text-xs font-bold text-slate-400 mb-1">
+                  <span>Liquid Cash & Wallets</span>
+                  <span id="overview-total-liquid" class="text-emerald-400">₱0.00</span>
+                </div>
+                <div id="overview-liquid-list" class="space-y-2 mt-2"></div>
+              </div>
+
+              <div class="pt-3 border-t border-slate-800">
+                <div class="flex justify-between text-xs font-bold text-slate-400 mb-1">
+                  <span>Credit Debt to Pay</span>
+                  <span id="overview-total-debt" class="text-rose-400">₱0.00</span>
+                </div>
+                <div id="overview-credit-list" class="space-y-2 mt-2"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- MONTHLY SPEND DISTRIBUTION CHART -->
+          <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-6 shadow-sm">
+            <h3 class="text-sm font-extrabold uppercase tracking-wider text-slate-200 mb-4 pb-3 border-b border-slate-800 flex items-center gap-2">
+              <i data-lucide="pie-chart" class="h-4 w-4 text-cyan-400"></i> Cash Distribution
+            </h3>
+            <div class="relative h-64 w-full flex items-center justify-center">
+              <canvas id="monthlyChart"></canvas>
+            </div>
+          </div>
+
+          <!-- SAVINGS GOALS PROGRESS -->
+          <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-6 shadow-sm">
+            <h3 class="text-sm font-extrabold uppercase tracking-wider text-slate-200 mb-4 pb-3 border-b border-slate-800 flex items-center gap-2">
+              <i data-lucide="target" class="h-4 w-4 text-indigo-400"></i> Monthly Savings Targets
+            </h3>
+            <div id="savings-panel" class="space-y-4">
+              <p class="text-sm text-slate-500 font-medium py-2">No savings targets allocated.</p>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- TAB 2: ANNUAL OVERVIEW VIEW -->
+    <div id="annual-view" class="space-y-6 hidden">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Annual Income</span>
+          <h3 id="annual-income" class="text-2xl font-black text-emerald-400 mt-2">₱0.00</h3>
+        </div>
+        <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Annual Outgoings</span>
+          <h3 id="annual-outgoings" class="text-2xl font-black text-rose-400 mt-2">₱0.00</h3>
+        </div>
+        <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Annual Net Savings</span>
+          <h3 id="annual-net" class="text-2xl font-black text-indigo-400 mt-2">₱0.00</h3>
+        </div>
+      </div>
+
+      <!-- ANNUAL BAR CHART -->
+      <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-6 shadow-sm">
+        <h3 class="text-sm font-extrabold uppercase tracking-wider text-slate-200 mb-4 pb-3 border-b border-slate-800">Annual Cash Flow Performance</h3>
+        <div class="relative h-80 w-full">
+          <canvas id="annualChart"></canvas>
+        </div>
+      </div>
+
+      <!-- ANNUAL LEDGER TABLE -->
+      <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-6 shadow-sm">
+        <h3 class="text-sm font-extrabold uppercase tracking-wider text-slate-200 mb-4 pb-3 border-b border-slate-800">Month-by-Month Breakdown</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="border-b border-slate-800 text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
+                <th class="px-4 py-3">Month</th>
+                <th class="px-4 py-3 text-right">Income</th>
+                <th class="px-4 py-3 text-right">Expenses</th>
+                <th class="px-4 py-3 text-right">Bills Paid</th>
+                <th class="px-4 py-3 text-right">Net Surplus</th>
+              </tr>
+            </thead>
+            <tbody id="annual-table-body" class="divide-y divide-slate-800/60"></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
-    <div id="app-container" class="max-w-7xl mx-auto px-4 py-6 md:px-8">
-      <header class="glass mb-8 rounded-2xl border border-slate-200/80 shadow-sm">
-        <div class="flex flex-col gap-4 px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
-          <div class="flex items-center gap-3.5">
-            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 p-2.5 text-white shadow-md border border-emerald-400/20">
-              <svg class="h-full w-full" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M26 18H52C70 18 84 32 84 50C84 68 70 82 52 82H26V18Z" stroke="white" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
-                <rect x="22" y="18" width="9" height="64" rx="4.5" fill="#34d399"/>
-                <circle cx="50" cy="50" r="8" fill="white"/>
-              </svg>
-            </div>
-
-            <div>
-              <p class="text-[11px] font-extrabold uppercase tracking-[0.24em] text-emerald-600">Disciplined</p>
-              <div class="flex items-center gap-3">
-                <h1 class="text-xl font-black tracking-tight text-slate-900 md:text-2xl">Budget Tracker</h1>
-                <select id="year-select" class="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800 outline-none cursor-pointer hover:bg-emerald-100 transition"></select>
-              </div>
-            </div>
-          </div>
-
-          <div class="flex flex-wrap items-center gap-3">
-            <div class="flex items-center rounded-xl border border-slate-200 bg-slate-100 p-1">
-              <button data-tab="monthly" class="tab-button active rounded-lg px-4 py-2 text-xs font-bold transition">Monthly Overview</button>
-              <button data-tab="annual" class="tab-button inactive rounded-lg px-4 py-2 text-xs font-bold transition">Annual</button>
-              <button data-tab="accounts" class="tab-button inactive rounded-lg px-4 py-2 text-xs font-bold transition">Bank Accounts & Cards</button>
-            </div>
-
-            <div class="relative">
-              <label for="month-select" class="sr-only">Month</label>
-              <select id="month-select" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 outline-none shadow-sm cursor-pointer"></select>
-            </div>
-
-            <button id="add-entry-btn" class="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow hover:bg-emerald-500 transition">
-              <i data-lucide="plus-circle" class="h-4 w-4"></i> Add Entry
-            </button>
-
-            <div class="flex items-center gap-2 pl-2 border-l border-slate-200">
-              <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900 text-xs font-black text-white shadow-sm" id="active-avatar">--</div>
-              <div class="hidden sm:block text-left">
-                <p id="active-user-name" class="text-xs font-black text-slate-900 leading-none">User</p>
-                <p class="text-[10px] text-slate-500 font-semibold">Active Profile</p>
-              </div>
-              <button id="signout-btn" title="Sign Out" class="rounded-xl p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition">
-                <i data-lucide="log-out" class="h-4 w-4"></i>
-              </button>
-            </div>
-          </div>
+    <!-- TAB 3: ACCOUNTS & CREDIT CARDS VIEW -->
+    <div id="accounts-view" class="space-y-6 hidden">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-lg font-black tracking-tight text-white">Registered Accounts & Credit Cards</h3>
+          <p class="text-xs text-slate-400 font-medium mt-0.5">Manage digital wallets, bank savings, and revolving credit limits.</p>
         </div>
-      </header>
+        <button onclick="openAccountModal(null)" class="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-emerald-500 transition">
+          <i data-lucide="plus" class="h-4 w-4"></i> Add Account / Card
+        </button>
+      </div>
 
-      <main class="space-y-8">
-        <section id="monthly-view" class="space-y-8">
-          <div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-            <article class="card-glow rounded-2xl border border-emerald-100 bg-white p-5">
-              <div class="flex items-center justify-between">
-                <p class="text-xs font-extrabold uppercase tracking-wider text-slate-500">Total Income</p>
-                <span class="rounded-xl bg-emerald-50 p-2.5 text-emerald-600"><i data-lucide="trending-up" class="h-5 w-5"></i></span>
-              </div>
-              <h2 id="income-total" class="mt-4 text-3xl font-black text-emerald-600 tracking-tight">₱0.00</h2>
-              <p id="income-subtext" class="mt-1 text-xs font-medium text-slate-500">0 streams credited</p>
-            </article>
+      <!-- ACCOUNTS GRID -->
+      <div id="account-grid" class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3"></div>
+      <div id="account-empty" class="rounded-2xl border border-slate-800 bg-slate-950/60 p-12 text-center hidden">
+        <p class="text-sm font-semibold text-slate-400">No bank accounts or credit cards registered yet.</p>
+      </div>
 
-            <article class="card-glow rounded-2xl border border-rose-100 bg-white p-5">
-              <div class="flex items-center justify-between">
-                <p class="text-xs font-extrabold uppercase tracking-wider text-slate-500">Expenses</p>
-                <span class="rounded-xl bg-rose-50 p-2.5 text-rose-600"><i data-lucide="shopping-bag" class="h-5 w-5"></i></span>
-              </div>
-              <h2 id="expense-total" class="mt-4 text-3xl font-black text-rose-600 tracking-tight">₱0.00</h2>
-              <p id="expense-subtext" class="mt-1 text-xs font-medium text-slate-500">0 itemized debits</p>
-            </article>
-
-            <article class="card-glow rounded-2xl border border-amber-100 bg-white p-5">
-              <div class="flex items-center justify-between">
-                <p class="text-xs font-extrabold uppercase tracking-wider text-slate-500">Bills & Arrears</p>
-                <span class="rounded-xl bg-amber-50 p-2.5 text-amber-600"><i data-lucide="receipt" class="h-5 w-5"></i></span>
-              </div>
-              <h2 id="bill-total" class="mt-4 text-3xl font-black text-amber-600 tracking-tight">₱0.00</h2>
-              <p id="bill-subtext" class="mt-1 text-xs font-medium text-amber-700">0 due this month</p>
-            </article>
-
-            <article class="card-glow rounded-2xl border border-indigo-100 bg-white p-5">
-              <div class="flex items-center justify-between">
-                <p class="text-xs font-extrabold uppercase tracking-wider text-slate-500">Net Surplus</p>
-                <span class="rounded-xl bg-indigo-50 p-2.5 text-indigo-600"><i data-lucide="piggy-bank" class="h-5 w-5"></i></span>
-              </div>
-              <h2 id="net-total" class="mt-4 text-3xl font-black text-indigo-600 tracking-tight">₱0.00</h2>
-              <p id="net-subtext" class="mt-1 text-xs font-medium text-indigo-700">0% savings margin</p>
-            </article>
-          </div>
-
-          <div class="grid gap-8 lg:grid-cols-[1.85fr_1.15fr] items-start">
-            
-            <div class="space-y-8">
-              <section class="card-glow rounded-2xl border border-slate-200 bg-white p-5 md:p-6">
-                <div class="mb-5 flex items-center justify-between">
-                  <div>
-                    <div class="flex items-center gap-2">
-                      <span class="h-2.5 w-2.5 rounded-full bg-rose-500"></span>
-                      <h3 class="text-lg font-black text-slate-900">Section 2: Itemized Expenses</h3>
-                    </div>
-                    <p class="text-xs text-slate-500 mt-0.5">Outlays for food, dining, tithes, transport, and shopping</p>
-                  </div>
-                  <button id="add-expense-btn" class="rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-slate-800 transition">+ Add Expense</button>
-                </div>
-
-                <div class="overflow-x-auto rounded-xl border border-slate-200/80">
-                  <table class="min-w-full text-left text-sm">
-                    <thead class="bg-slate-50/80 text-xs font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
-                      <tr>
-                        <th class="px-4 py-3">Category</th>
-                        <th class="px-4 py-3">Description</th>
-                        <th class="px-4 py-3">Paid Via</th>
-                        <th class="px-4 py-3 text-right">Amount</th>
-                        <th class="px-4 py-3 text-center">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody id="expense-table-body" class="divide-y divide-slate-100"></tbody>
-                  </table>
-                </div>
-                <div id="expense-empty" class="hidden p-8 text-center text-slate-400 text-sm font-semibold">
-                  No expenses logged for this month.
-                </div>
-              </section>
-
-              <section class="card-glow rounded-2xl border border-slate-200 bg-white p-5 md:p-6">
-                <div class="mb-5 flex items-center justify-between">
-                  <div>
-                    <div class="flex items-center gap-2">
-                      <span class="h-2.5 w-2.5 rounded-full bg-amber-500"></span>
-                      <h3 class="text-lg font-black text-slate-900">Section 3: Bills & Recurring Dues</h3>
-                    </div>
-                    <p class="text-xs text-slate-500 mt-0.5">Due dates, past arrears rollover, and payment status</p>
-                  </div>
-                  <button id="add-bill-btn" class="rounded-xl bg-amber-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-amber-500 transition">+ Add Bill</button>
-                </div>
-                <div id="bill-list" class="space-y-3"></div>
-              </section>
-
-              <section class="card-glow rounded-2xl border border-slate-200 bg-white p-5 md:p-6">
-                <div class="mb-5 flex items-center justify-between">
-                  <div>
-                    <div class="flex items-center gap-2">
-                      <span class="h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
-                      <h3 class="text-lg font-black text-slate-900">Income Streams</h3>
-                    </div>
-                    <p class="text-xs text-slate-500 mt-0.5">Salaries and deposits directly credited to accounts</p>
-                  </div>
-                  <button id="add-income-btn" class="rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-500 transition">+ Add Income</button>
-                </div>
-                <div id="income-list" class="space-y-3"></div>
-              </section>
-
-              <section class="card-glow rounded-2xl border border-slate-200 bg-white p-5 md:p-6">
-                <div class="mb-5 flex items-center justify-between">
-                  <div>
-                    <div class="flex items-center gap-2">
-                      <span class="h-2.5 w-2.5 rounded-full bg-indigo-500"></span>
-                      <h3 class="text-lg font-black text-slate-900">Section 4: Savings Goals</h3>
-                    </div>
-                    <p class="text-xs text-slate-500 mt-0.5">Emergency funds, MP2, and target investments</p>
-                  </div>
-                  <button id="add-savings-btn" class="rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-500 transition">+ Set Goal</button>
-                </div>
-                <div id="savings-panel" class="space-y-3"></div>
-              </section>
-
-              <section class="card-glow rounded-2xl border border-slate-200 bg-white p-5 md:p-6">
-                <div class="mb-4">
-                  <h3 class="text-lg font-black text-slate-900">Monthly Cashflow Breakdown</h3>
-                  <p class="text-xs text-slate-500">Visual comparison of incoming salary versus total outgoings</p>
-                </div>
-                <div class="h-64">
-                  <canvas id="monthlyChart"></canvas>
-                </div>
-              </section>
-            </div>
-
-            <div class="space-y-6 lg:sticky lg:top-6">
-              <div class="card-glow rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div class="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
-                  <div class="flex items-center gap-2">
-                    <div class="rounded-xl bg-emerald-50 p-2 text-emerald-600">
-                      <i data-lucide="wallet" class="h-5 w-5"></i>
-                    </div>
-                    <div>
-                      <h3 class="text-base font-black text-slate-900">Bank Remaining Balance</h3>
-                      <p class="text-[11px] font-semibold text-slate-500">Live liquid funds after expenses & bills</p>
-                    </div>
-                  </div>
-                  <span id="overview-total-liquid" class="text-xs font-black text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full">₱0.00</span>
-                </div>
-                <div id="overview-liquid-list" class="space-y-3"></div>
-              </div>
-
-              <div class="card-glow rounded-2xl border border-amber-200/80 bg-white p-5 shadow-sm">
-                <div class="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
-                  <div class="flex items-center gap-2">
-                    <div class="rounded-xl bg-amber-50 p-2 text-amber-600">
-                      <i data-lucide="credit-card" class="h-5 w-5"></i>
-                    </div>
-                    <div>
-                      <h3 class="text-base font-black text-slate-900">Credit / Loan Remaining</h3>
-                      <p class="text-[11px] font-semibold text-slate-500">Outstanding amount you need to pay</p>
-                    </div>
-                  </div>
-                  <span id="overview-total-debt" class="text-xs font-black text-rose-700 bg-rose-50 px-2.5 py-1 rounded-full">₱0.00</span>
-                </div>
-                <div id="overview-credit-list" class="space-y-3"></div>
-              </div>
-            </div>
-
-          </div>
-        </section>
-
-        <section id="annual-view" class="hidden space-y-8">
-          <div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-            <article class="card-glow rounded-2xl border border-emerald-100 bg-white p-5">
-              <p class="text-xs font-extrabold uppercase tracking-wider text-slate-500">Annual Income</p>
-              <h2 id="annual-income" class="mt-4 text-3xl font-black text-emerald-600 tracking-tight">₱0.00</h2>
-            </article>
-            <article class="card-glow rounded-2xl border border-rose-100 bg-white p-5">
-              <p class="text-xs font-extrabold uppercase tracking-wider text-slate-500">Annual Outgoings</p>
-              <h2 id="annual-outgoings" class="mt-4 text-3xl font-black text-rose-600 tracking-tight">₱0.00</h2>
-            </article>
-            <article class="card-glow rounded-2xl border border-indigo-100 bg-white p-5">
-              <p class="text-xs font-extrabold uppercase tracking-wider text-slate-500">Savings Value</p>
-              <h2 id="annual-savings" class="mt-4 text-3xl font-black text-indigo-600 tracking-tight">₱0.00</h2>
-            </article>
-            <article class="card-glow rounded-2xl border border-slate-200 bg-white p-5">
-              <p class="text-xs font-extrabold uppercase tracking-wider text-slate-500">Net Annual</p>
-              <h2 id="annual-net" class="mt-4 text-3xl font-black text-slate-900 tracking-tight">₱0.00</h2>
-            </article>
-          </div>
-
-          <section class="card-glow rounded-2xl border border-slate-200 bg-white p-5 md:p-6">
-            <h3 class="text-lg font-black text-slate-900 mb-4">12-Month Performance</h3>
-            <div class="h-80">
-              <canvas id="annualChart"></canvas>
-            </div>
-          </section>
-
-          <section class="card-glow rounded-2xl border border-slate-200 bg-white p-5 md:p-6">
-            <h3 class="text-lg font-black text-slate-900 mb-4">Month by Month Ledger</h3>
-            <div class="overflow-x-auto rounded-xl border border-slate-200">
-              <table class="min-w-full text-left text-sm">
-                <thead class="bg-slate-50 font-bold text-slate-600">
-                  <tr>
-                    <th class="px-4 py-3">Month</th>
-                    <th class="px-4 py-3 text-right">Income</th>
-                    <th class="px-4 py-3 text-right">Expenses</th>
-                    <th class="px-4 py-3 text-right">Bills Paid</th>
-                    <th class="px-4 py-3 text-right">Net</th>
-                  </tr>
-                </thead>
-                <tbody id="annual-table-body" class="divide-y divide-slate-100"></tbody>
-              </table>
-            </div>
-          </section>
-        </section>
-
-        <section id="accounts-view" class="hidden space-y-8">
-          <div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-            <article class="card-glow rounded-2xl border border-emerald-100 bg-white p-5">
-              <p class="text-xs font-extrabold uppercase tracking-wider text-slate-500">Liquid Cash & Digital</p>
-              <h2 id="cash-total" class="mt-4 text-3xl font-black text-emerald-600">₱0.00</h2>
-            </article>
-            <article class="card-glow rounded-2xl border border-rose-100 bg-white p-5">
-              <p class="text-xs font-extrabold uppercase tracking-wider text-slate-500">Credit / Loan Used</p>
-              <h2 id="debt-total" class="mt-4 text-3xl font-black text-rose-600">₱0.00</h2>
-            </article>
-            <article class="card-glow rounded-2xl border border-blue-100 bg-white p-5">
-              <p class="text-xs font-extrabold uppercase tracking-wider text-slate-500">Available Credit</p>
-              <h2 id="available-total" class="mt-4 text-3xl font-black text-blue-600">₱0.00</h2>
-            </article>
-            <article class="card-glow rounded-2xl border border-slate-200 bg-white p-5">
-              <p class="text-xs font-extrabold uppercase tracking-wider text-slate-500">Total Portfolio</p>
-              <h2 id="wallet-total" class="mt-4 text-3xl font-black text-slate-900">₱0.00</h2>
-            </article>
-          </div>
-
-          <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div class="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <div class="flex items-center gap-2">
-                  <i data-lucide="building" class="h-5 w-5 text-emerald-600"></i>
-                  <h3 class="text-xl font-black text-slate-900">Bank Accounts & Credit Cards</h3>
-                </div>
-                <p class="text-sm text-slate-500">Savings, Payroll, E-Wallets & Revolving Credit Lines</p>
-              </div>
-              <button id="add-account-btn" class="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-500 transition">
-                <i data-lucide="plus" class="h-4 w-4"></i> Add Account / Card
-              </button>
-            </div>
-
-            <div id="account-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"></div>
-
-            <div id="account-empty" class="hidden py-16 text-center text-slate-400">
-              <i data-lucide="credit-card" class="mx-auto h-12 w-12 text-slate-300 stroke-[1.5]"></i>
-              <p class="mt-3 text-sm font-semibold">No bank accounts or cards added yet.</p>
-            </div>
-          </div>
-        </section>
-      </main>
+      <!-- PORTFOLIO TOTALS -->
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-4 rounded-2xl border border-slate-800 bg-slate-950/60 p-6">
+        <div>
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Total Liquid Funds</span>
+          <h4 id="cash-total" class="text-xl font-black text-emerald-400 mt-1">₱0.00</h4>
+        </div>
+        <div>
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Total Credit Debt</span>
+          <h4 id="debt-total" class="text-xl font-black text-rose-400 mt-1">₱0.00</h4>
+        </div>
+        <div>
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Available Credit</span>
+          <h4 id="available-total" class="text-xl font-black text-cyan-400 mt-1">₱0.00</h4>
+        </div>
+        <div>
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Net Portfolio Worth</span>
+          <h4 id="wallet-total" class="text-xl font-black text-indigo-400 mt-1">₱0.00</h4>
+        </div>
+      </div>
     </div>
 
-    <div id="entry-modal" class="fixed inset-0 z-40 hidden items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-      <div class="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
-        <div class="mb-5 flex items-center justify-between border-b border-slate-100 pb-3">
-          <div>
-            <p class="text-[11px] font-extrabold uppercase tracking-widest text-emerald-600">Manage Entry</p>
-            <h3 id="entry-modal-title" class="text-xl font-black text-slate-900">Add Entry</h3>
-          </div>
-          <button id="close-entry-modal" class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition">
-            <i data-lucide="x" class="h-5 w-5"></i>
-          </button>
+  </main>
+
+  <!-- MODAL: ADD / EDIT ENTRY -->
+  <div id="entry-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/80 backdrop-blur-md p-4">
+    <div class="w-full max-w-lg rounded-3xl bg-white p-6 text-slate-900 shadow-2xl border border-slate-100">
+      <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+        <div>
+          <span class="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-700">Ledger Entry</span>
+          <h3 class="text-lg font-black tracking-tight text-slate-900 mt-1">Record Financial Item</h3>
+        </div>
+        <button id="close-entry-modal" class="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition">
+          <i data-lucide="x" class="h-5 w-5"></i>
+        </button>
+      </div>
+
+      <form id="entry-form" class="space-y-4">
+        <input type="hidden" id="entry-id">
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Entry Type</label>
+          <select id="entry-type" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-900 focus:border-emerald-600 focus:outline-none">
+            <option value="income">Income Stream</option>
+            <option value="expense">Itemized Expense</option>
+            <option value="bill">Recurring Bill / Due</option>
+            <option value="savings">Savings Goal</option>
+          </select>
         </div>
 
-        <form id="entry-form" class="space-y-4">
-          <input type="hidden" id="entry-id" />
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label for="entry-type" class="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500">Entry Type</label>
-            <select id="entry-type" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-semibold focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 transition">
-              <option value="income">Income Stream</option>
-              <option value="expense">Itemized Expense</option>
-              <option value="bill">Recurring Bill / Due</option>
-              <option value="savings">Savings Goal</option>
-            </select>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Description / Label</label>
+            <input type="text" id="entry-label" required placeholder="e.g. Monthly Salary, Grocery" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-900 focus:border-emerald-600 focus:outline-none">
           </div>
-
           <div>
-            <label id="entry-label-label" for="entry-label" class="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500">Label / Name</label>
-            <input id="entry-label" type="text" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-semibold focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 transition" placeholder="e.g. Salary, Electricity, Groceries" required />
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Amount (PHP)</label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 font-bold text-sm">₱</span>
+              <input type="number" step="0.01" id="entry-amount" required placeholder="0.00" class="w-full rounded-xl border border-slate-300 pl-8 pr-4 py-2.5 text-sm font-semibold text-slate-900 focus:border-emerald-600 focus:outline-none">
+            </div>
           </div>
+        </div>
 
-          <div id="entry-category-group">
-            <label for="entry-category" class="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500">Category</label>
-            <select id="entry-category" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-semibold focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 transition"></select>
-          </div>
+        <div id="entry-category-group">
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Expense Category</label>
+          <select id="entry-category" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-900 focus:border-emerald-600 focus:outline-none"></select>
+        </div>
 
-          <div>
-            <label for="entry-amount" class="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500">Amount (₱)</label>
-            <input id="entry-amount" type="number" min="0" step="0.01" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-bold focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 transition" placeholder="0.00" required />
-          </div>
-
-          <div id="entry-account-group">
-            <label for="entry-account" id="entry-account-label" class="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500">Bank / Card</label>
-            <select id="entry-account" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-semibold focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 transition"></select>
-          </div>
-
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div id="entry-due-group" class="hidden">
-            <label for="entry-due" class="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500">Due Day / Date</label>
-            <input id="entry-due" type="text" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-semibold focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 transition" placeholder="e.g. 27th" />
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Due Day / Schedule</label>
+            <input type="text" id="entry-due" placeholder="e.g. 15th" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-900 focus:border-emerald-600 focus:outline-none">
           </div>
 
           <div id="entry-direction-group" class="hidden">
-            <label for="entry-direction" class="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500">Transaction Flow</label>
-            <select id="entry-direction" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-semibold focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 transition">
-              <option value="debit">Debit (Outgoing Bill / Bank Outflow)</option>
-              <option value="credit">Credit (Payment to Card / Balance Reduction)</option>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Payment Direction</label>
+            <select id="entry-direction" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-900 focus:border-emerald-600 focus:outline-none">
+              <option value="debit">Standard Debit (Deducts Account)</option>
+              <option value="credit">Credit Card Payment (Decreases Card Debt)</option>
             </select>
           </div>
-
-          <div id="entry-goal-group" class="hidden">
-            <label for="entry-goal" class="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500">Target Goal Amount (₱)</label>
-            <input id="entry-goal" type="number" min="0" step="0.01" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-semibold focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 transition" placeholder="15000" />
-          </div>
-
-          <div class="flex justify-end gap-3 pt-3 border-t border-slate-100">
-            <button type="button" id="cancel-entry-btn" class="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 transition">Cancel</button>
-            <button type="submit" id="save-entry-btn" class="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-emerald-500 shadow-md transition">Save Entry</button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <div id="account-modal" class="fixed inset-0 z-40 hidden items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-      <div class="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
-        <div class="mb-5 flex items-center justify-between border-b border-slate-100 pb-3">
-          <div>
-            <p id="account-modal-badge" class="text-[11px] font-extrabold uppercase tracking-widest text-emerald-600">Account Setup</p>
-            <h3 id="account-modal-title" class="text-xl font-black text-slate-900">Add Account / Card</h3>
-          </div>
-          <button id="close-account-modal" class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition">
-            <i data-lucide="x" class="h-5 w-5"></i>
-          </button>
         </div>
 
-        <form id="account-form" class="space-y-4">
-          <input type="hidden" id="account-id" />
-          
-          <div class="grid gap-4 md:grid-cols-2">
-            <div>
-              <label for="account-name" class="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500">Account / Card Name</label>
-              <input id="account-name" type="text" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-semibold focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 transition" placeholder="e.g. UnionBank, BPI, GCash" required />
-            </div>
-            <div>
-              <label for="account-type" class="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500">Type</label>
-              <select id="account-type" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-semibold focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 transition">
-                <option value="bank">Bank Account</option>
-                <option value="wallet">E-Wallet</option>
-                <option value="credit">Credit Card</option>
-                <option value="loan">Loan / Financing</option>
-              </select>
-            </div>
-          </div>
-
-          <div id="liquid-account-fields" class="grid gap-4 md:grid-cols-2">
-            <div>
-              <label for="account-balance" class="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500">Starting Baseline Balance (₱)</label>
-              <input id="account-balance" type="number" step="0.01" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-bold focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 transition" placeholder="0.00" />
-            </div>
-            <div>
-              <label for="account-tag" class="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500">Sub-label / Card Tier</label>
-              <input id="account-tag" type="text" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-semibold focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 transition" placeholder="e.g. Payroll, Savings" />
-            </div>
-          </div>
-
-          <div id="credit-card-fields" class="hidden space-y-4 rounded-xl border border-amber-200/80 bg-amber-50/40 p-4">
-            <div class="flex items-center gap-2 text-amber-900 font-bold text-xs uppercase tracking-wider">
-              <i data-lucide="credit-card" class="h-4 w-4 text-amber-700"></i> Credit Card Parameters
-            </div>
-            <div class="grid gap-4 md:grid-cols-2">
-              <div>
-                <label for="account-limit" class="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-600">Total Credit Limit (₱)</label>
-                <input id="account-limit" type="number" min="0" step="0.01" class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-bold focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200 transition" placeholder="50000.00" />
-              </div>
-              <div>
-                <label for="account-used" class="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-600">Credit Used / Baseline Debt (₱)</label>
-                <input id="account-used" type="number" min="0" step="0.01" class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-bold focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200 transition" placeholder="12500.00" />
-              </div>
-            </div>
-            <div>
-              <label for="account-due-day" class="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-600">Payment Due Date / Cut-off</label>
-              <input id="account-due-day" type="text" class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200 transition" placeholder="e.g. 15th" />
-            </div>
-          </div>
-
-          <div>
-            <label for="account-last-four" class="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500">Last 4 Digits / Mobile Number</label>
-            <input id="account-last-four" type="text" maxlength="8" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-semibold focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 transition" placeholder="e.g. 9031" />
-          </div>
-
-          <div class="flex justify-end gap-3 pt-3 border-t border-slate-100">
-            <button type="button" id="cancel-account-btn" class="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 transition">Cancel</button>
-            <button type="submit" id="save-account-btn" class="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-bold text-white hover:bg-slate-800 shadow-md transition">Save Account</button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <!-- APP FOOTER (Very Bottom of Main Container) -->
-    <footer class="mt-16 pb-12 pt-8 border-t border-slate-200 text-center flex flex-col items-center justify-center gap-3">
-      <button 
-        id="pwa-install-btn" 
-        type="button" 
-        class="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-6 py-3 text-xs font-bold text-white shadow-md hover:bg-slate-800 active:scale-95 transition cursor-pointer">
-        <i data-lucide="download" class="h-4 w-4 text-emerald-400"></i> Install Disciplined to Device
-      </button>
-      <p class="text-[11px] font-semibold text-slate-400">Disciplined Budget Tracker • Cloud Synced & Secure</p>
-    </footer>
-
-    </div> <!-- Closes #app-container -->
-
-    <div id="dialog-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-      <div class="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
-        <div class="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-          <div>
-            <p id="dialog-badge" class="text-[11px] font-extrabold uppercase tracking-widest text-emerald-600">Action Required</p>
-            <h3 id="dialog-title" class="text-xl font-black text-slate-900">Update Item</h3>
-          </div>
-          <button type="button" id="close-dialog-modal" class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition">
-            <i data-lucide="x" class="h-5 w-5"></i>
-          </button>
+        <div id="entry-goal-group" class="hidden">
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Target Goal Amount (PHP)</label>
+          <input type="number" step="0.01" id="entry-goal" placeholder="Total target" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-900 focus:border-emerald-600 focus:outline-none">
         </div>
 
-        <form id="dialog-form" class="p-6">
-          <div id="dialog-description" class="mb-4 text-sm font-medium text-slate-600">Please provide the updated information below.</div>
-          
-          <div id="dialog-input-container" class="space-y-2">
-            <label id="dialog-input-label" for="dialog-input" class="block text-xs font-bold uppercase tracking-wider text-slate-500">Amount (₱)</label>
-            <div class="relative">
-              <span id="dialog-input-prefix" class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-sm font-bold text-slate-400">₱</span>
-              <input id="dialog-input" type="text" class="w-full rounded-xl border border-slate-200 bg-slate-50 pl-8 pr-4 py-2.5 text-base font-bold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 transition" />
+        <div>
+          <label id="entry-account-label" class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Associated Account / Card</label>
+          <select id="entry-account" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-900 focus:border-emerald-600 focus:outline-none"></select>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+          <button type="button" id="cancel-entry-btn" class="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50 transition">Cancel</button>
+          <button type="submit" class="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white shadow-md hover:bg-emerald-500 transition">Save Entry</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: ADD / EDIT ACCOUNT & CREDIT CARD -->
+  <div id="account-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/80 backdrop-blur-md p-4">
+    <div class="w-full max-w-lg rounded-3xl bg-white p-6 text-slate-900 shadow-2xl border border-slate-100">
+      <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+        <div>
+          <span id="account-modal-badge" class="rounded-full bg-blue-100 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-blue-700">Account Setup</span>
+          <h3 id="account-modal-title" class="text-lg font-black tracking-tight text-slate-900 mt-1">Add Account / Card</h3>
+        </div>
+        <button id="close-account-modal" class="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition">
+          <i data-lucide="x" class="h-5 w-5"></i>
+        </button>
+      </div>
+
+      <form id="account-form" class="space-y-4">
+        <input type="hidden" id="account-id">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Institution / Account Name</label>
+            <input type="text" id="account-name" required placeholder="e.g. GoTyme Bank, BPI Credit Card" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-900 focus:border-emerald-600 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Account Type</label>
+            <select id="account-type" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-900 focus:border-emerald-600 focus:outline-none">
+              <option value="bank">Bank Savings Account</option>
+              <option value="wallet">Digital Wallet (GCash/Maya)</option>
+              <option value="credit">Credit Card</option>
+              <option value="loan">Financing / Loan</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Last 4 Digits</label>
+            <input type="text" id="account-last-four" maxlength="4" placeholder="9031" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-900 focus:border-emerald-600 focus:outline-none">
+          </div>
+        </div>
+
+        <!-- LIQUID ACCOUNT FIELDS -->
+        <div id="liquid-account-fields" class="space-y-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Starting Baseline Balance</label>
+              <input type="number" step="0.01" id="account-balance" placeholder="0.00" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-900 focus:border-emerald-600 focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Tag / Category</label>
+              <input type="text" id="account-tag" placeholder="Emergency Fund" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-900 focus:border-emerald-600 focus:outline-none">
             </div>
           </div>
+        </div>
 
-          <div class="mt-6 flex justify-end gap-3">
-            <button type="button" id="dialog-cancel-btn" class="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 transition">Cancel</button>
-            <button type="submit" id="dialog-confirm-btn" class="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-emerald-500 shadow-md transition">Confirm</button>
+        <!-- CREDIT CARD FIELDS -->
+        <div id="credit-card-fields" class="space-y-4 hidden">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Credit Limit</label>
+              <input type="number" step="0.01" id="account-limit" placeholder="50000" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-900 focus:border-emerald-600 focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Current Balance Used</label>
+              <input type="number" step="0.01" id="account-used" placeholder="0.00" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-900 focus:border-emerald-600 focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Due Day</label>
+              <input type="text" id="account-due-day" placeholder="15th" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-900 focus:border-emerald-600 focus:outline-none">
+            </div>
           </div>
-        </form>
-      </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+          <button type="button" id="cancel-account-btn" class="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50 transition">Cancel</button>
+          <button type="submit" id="save-account-btn" class="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white shadow-md hover:bg-emerald-500 transition">Save Account</button>
+        </div>
+      </form>
     </div>
-  </body>
+  </div>
+
+  <!-- CENTERED GENERAL CONFIRMATION / PROMPT MODAL -->
+  <div id="dialog-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/80 backdrop-blur-md p-4">
+    <div class="w-full max-w-md rounded-3xl bg-white p-6 text-slate-900 shadow-2xl border border-slate-100">
+      <div class="flex items-center justify-between mb-3 pb-3 border-b border-slate-100">
+        <span id="dialog-badge" class="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-700">Action Required</span>
+        <button id="close-dialog-modal" class="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition">
+          <i data-lucide="x" class="h-5 w-5"></i>
+        </button>
+      </div>
+
+      <h3 id="dialog-title" class="text-lg font-black tracking-tight text-slate-900 mb-1">Confirm Action</h3>
+      <p id="dialog-description" class="text-xs font-medium text-slate-500 mb-4">Please verify your choice below.</p>
+
+      <form id="dialog-form" class="space-y-4">
+        <div id="dialog-input-container">
+          <div class="relative">
+            <span id="dialog-input-prefix" class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 font-bold text-sm">₱</span>
+            <input type="number" step="0.01" id="dialog-input" class="w-full rounded-xl border border-slate-300 pl-8 pr-4 py-2.5 text-sm font-semibold text-slate-900 focus:border-emerald-600 focus:outline-none">
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-2">
+          <button type="button" id="dialog-cancel-btn" class="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50 transition">Cancel</button>
+          <button type="submit" id="dialog-confirm-btn" class="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white shadow-md hover:bg-emerald-500 transition">Confirm</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</body>
 </html>
