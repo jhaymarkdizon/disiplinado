@@ -1,8 +1,7 @@
 /**
- * Disciplined Budget Tracker - Application Logic
+ * Disciplined Budget Tracker - Application Logic (Supabase Cloud Synced)
  */
 
-// Optional Supabase Configuration (Leave blank or insert your real credentials)
 const SUPABASE_URL = 'https://vwyiygetdbnibwlfpcjy.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3eWl5Z2V0ZGJuaWJ3bGZwY2p5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzMzU2ODMsImV4cCI6MjEwMzkxMTY4M30.1jldKZKmMlkRwqQ6TLsrPaoHDgWEo9mBYdcuL7WLNAQ';
 
@@ -15,9 +14,7 @@ if (window.supabase && SUPABASE_URL && !SUPABASE_URL.includes('YOUR_')) {
   }
 }
 
-const USERS_STORAGE_KEY = 'disciplined_users_db_v1';
 const CURRENT_USER_KEY = 'disciplined_active_user_id';
-const MAX_PROFILES = 5;
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -63,38 +60,40 @@ function getAutoBrandColor(accountName, type = 'bank') {
   return match ? match.color : (type === 'credit' ? 'from-slate-900 to-zinc-950' : 'from-slate-800 to-slate-950');
 }
 
-// Clean Slate Template: Completely fresh start
 const DEFAULT_STATE_TEMPLATE = {
   selectedYear: 2026,
-  selectedMonth: 0, // January
+  selectedMonth: 0,
   activeTab: 'monthly',
   accounts: [],
   months: {}
 };
 
-let usersDb = loadUsersDatabase();
 let currentUserId = localStorage.getItem(CURRENT_USER_KEY);
 let appState = null;
-
-function loadUsersDatabase() {
-  try {
-    const raw = localStorage.getItem(USERS_STORAGE_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw);
-  } catch (e) {
-    return [];
-  }
-}
-
-function saveUsersDatabase() {
-  localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(usersDb));
-}
+let currentUserObj = null;
 
 function getUserStorageKey(userId) {
   return `disciplined_vault_user_${userId}`;
 }
 
-function loadUserState(userId) {
+async function loadUserState(userId) {
+  if (supabaseClient) {
+    try {
+      const { data, error } = await supabaseClient
+        .from('user_states')
+        .select('state')
+        .eq('user_id', userId)
+        .single();
+      
+      if (!error && data && data.state) {
+        localStorage.setItem(getUserStorageKey(userId), JSON.stringify(data.state));
+        return data.state;
+      }
+    } catch (e) {
+      console.warn('Failed to load state from Supabase, checking local cache:', e);
+    }
+  }
+
   try {
     const raw = localStorage.getItem(getUserStorageKey(userId));
     if (!raw) return JSON.parse(JSON.stringify(DEFAULT_STATE_TEMPLATE));
@@ -104,9 +103,24 @@ function loadUserState(userId) {
   }
 }
 
-function saveState() {
-  if (!currentUserId) return;
+async function saveState() {
+  if (!currentUserId || !appState) return;
+
   localStorage.setItem(getUserStorageKey(currentUserId), JSON.stringify(appState));
+
+  if (supabaseClient) {
+    try {
+      await supabaseClient
+        .from('user_states')
+        .upsert({
+          user_id: currentUserId,
+          state: appState,
+          updated_at: new Date()
+        });
+    } catch (e) {
+      console.warn('Failed to sync state to Supabase cloud:', e);
+    }
+  }
 }
 
 function ensureMonthData(year, month) {
@@ -311,17 +325,17 @@ function setupHeaderSelectors() {
   const activeMonth = appState ? appState.selectedMonth : 0;
   monthSelect.innerHTML = MONTH_NAMES.map((m, idx) => `<option value="${idx}" ${idx === activeMonth ? 'selected' : ''}>${m}</option>`).join('');
 
-  yearSelect.addEventListener('change', (e) => {
+  yearSelect.addEventListener('change', async (e) => {
     if (!appState) return;
     appState.selectedYear = parseInt(e.target.value, 10);
-    saveState();
+    await saveState();
     renderApp();
   });
 
-  monthSelect.addEventListener('change', (e) => {
+  monthSelect.addEventListener('change', async (e) => {
     if (!appState) return;
     appState.selectedMonth = parseInt(e.target.value, 10);
-    saveState();
+    await saveState();
     renderApp();
   });
 }
@@ -329,7 +343,7 @@ function setupHeaderSelectors() {
 function setupTabNavigation() {
   const tabButtons = document.querySelectorAll('[data-tab]');
   tabButtons.forEach((btn) => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       if (!appState) return;
       appState.activeTab = btn.getAttribute('data-tab');
       tabButtons.forEach((b) => {
@@ -341,7 +355,7 @@ function setupTabNavigation() {
       document.getElementById('annual-view').classList.toggle('hidden', appState.activeTab !== 'annual');
       document.getElementById('accounts-view').classList.toggle('hidden', appState.activeTab !== 'accounts');
 
-      saveState();
+      await saveState();
       renderApp();
     });
   });
@@ -374,7 +388,7 @@ function setupEntryModal() {
   document.getElementById('add-savings-btn').addEventListener('click', () => openEntryModalFor('savings'));
 
   categorySelect.innerHTML = CATEGORIES.map((c) => `<option value="${c}">${c}</option>`).join('');
-  addEntryBtn.addEventListener('click', () => openEntryModalFor('income'));
+  if (addEntryBtn) addEntryBtn.addEventListener('click', () => openEntryModalFor('income'));
 
   function openEntryModalFor(type) {
     populateAccountSelectOptions();
@@ -414,7 +428,7 @@ function setupEntryModal() {
     else accountLabel.textContent = 'Linked Account';
   }
 
-  form.addEventListener('submit', (e) => {
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (!appState) return;
 
@@ -439,7 +453,7 @@ function setupEntryModal() {
       monthData.savings.push({ id: newId, label, amount, goal, accountId });
     }
 
-    saveState();
+    await saveState();
     closeModal();
     renderApp();
   });
@@ -472,7 +486,6 @@ function openAccountModal(editAccountId = null) {
       document.getElementById('account-id').value = existing.id;
       document.getElementById('account-name').value = existing.name;
       typeSelect.value = existing.type || 'bank';
-      document.getElementById('account-last-four').value = existing.lastFour || '';
 
       if (existing.type === 'credit' || existing.type === 'loan') {
         document.getElementById('account-limit').value = existing.creditLimit || '';
@@ -517,14 +530,14 @@ function setupAccountModal() {
   closeBtn.addEventListener('click', closeModal);
   cancelBtn.addEventListener('click', closeModal);
 
-  form.addEventListener('submit', (e) => {
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (!appState) return;
 
     const id = document.getElementById('account-id').value || 'acc-' + Date.now();
     const name = document.getElementById('account-name').value.trim();
     const type = typeSelect.value;
-    const lastFour = document.getElementById('account-last-four').value.trim() || '0000';
+    const lastFour = '0000';
     const color = getAutoBrandColor(name, type);
 
     let newAccount = { id, name, type, color, lastFour };
@@ -546,7 +559,7 @@ function setupAccountModal() {
       appState.accounts.push(newAccount);
     }
 
-    saveState();
+    await saveState();
     closeModal();
     renderApp();
   });
@@ -745,7 +758,7 @@ function renderIncomes(monthData) {
       });
       if (val !== null && !isNaN(parseFloat(val))) {
         inc.amount = parseFloat(val);
-        saveState();
+        await saveState();
         renderApp();
       }
     });
@@ -759,7 +772,7 @@ function renderIncomes(monthData) {
       });
       if (ok) {
         monthData.incomes = monthData.incomes.filter((i) => i.id !== inc.id);
-        saveState();
+        await saveState();
         renderApp();
       }
     });
@@ -826,9 +839,9 @@ function renderBills(monthData) {
       </div>
     `;
 
-    item.querySelector('[data-action="toggle-bill"]').addEventListener('click', () => {
+    item.querySelector('[data-action="toggle-bill"]').addEventListener('click', async () => {
       bill.paid = !bill.paid;
-      saveState();
+      await saveState();
       renderApp();
     });
 
@@ -841,7 +854,7 @@ function renderBills(monthData) {
       });
       if (val !== null && !isNaN(parseFloat(val))) {
         bill.amount = parseFloat(val);
-        saveState();
+        await saveState();
         renderApp();
       }
     });
@@ -855,7 +868,7 @@ function renderBills(monthData) {
       });
       if (ok) {
         monthData.bills = monthData.bills.filter((b) => b.id !== bill.id);
-        saveState();
+        await saveState();
         renderApp();
       }
     });
@@ -905,7 +918,7 @@ function renderExpenses(monthData) {
       });
       if (val !== null && !isNaN(parseFloat(val))) {
         exp.amount = parseFloat(val);
-        saveState();
+        await saveState();
         renderApp();
       }
     });
@@ -919,7 +932,7 @@ function renderExpenses(monthData) {
       });
       if (ok) {
         monthData.expenses = monthData.expenses.filter((e) => e.id !== exp.id);
-        saveState();
+        await saveState();
         renderApp();
       }
     });
@@ -975,7 +988,7 @@ function renderSavings(monthData) {
       });
       if (ok) {
         monthData.savings = monthData.savings.filter((item) => item.id !== s.id);
-        saveState();
+        await saveState();
         renderApp();
       }
     });
@@ -1044,7 +1057,7 @@ function renderAccounts() {
             </div>
 
             <div class="flex items-center justify-between pt-2 border-t border-white/15 text-xs font-semibold opacity-85">
-              <span>•••• ${acc.lastFour || '0000'}</span>
+              <span>•••• 0000</span>
               <span>${utilPercent}% Utilized</span>
             </div>
           </div>
@@ -1091,7 +1104,7 @@ function renderAccounts() {
             </div>
 
             <div class="flex items-center justify-between pt-2 border-t border-white/15 text-xs font-semibold opacity-85">
-              <span>•••• ${acc.lastFour || '9031'}</span>
+              <span>•••• 0000</span>
               <i data-lucide="shield-check" class="h-4 w-4"></i>
             </div>
           </div>
@@ -1118,7 +1131,7 @@ function renderAccounts() {
 
             <div class="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-[11px] font-medium text-slate-500 flex items-center justify-between">
               <span>Starting baseline: <strong class="text-slate-700">${formatPHP(acc.baselineBalance)}</strong></span>
-              <span class="text-[10px] text-emerald-700 font-bold uppercase tracking-wider">Live Synced</span>
+              <span class="text-[10px] text-emerald-700 font-bold uppercase tracking-wider">Cloud Synced</span>
             </div>
           </div>
         </div>
@@ -1133,7 +1146,7 @@ function renderAccounts() {
         });
         if (val !== null && !isNaN(parseFloat(val))) {
           acc.baselineBalance = parseFloat(val);
-          saveState();
+          await saveState();
           renderApp();
         }
       });
@@ -1152,7 +1165,7 @@ function renderAccounts() {
       });
       if (ok) {
         appState.accounts = appState.accounts.filter((a) => a.id !== acc.id);
-        saveState();
+        await saveState();
         renderApp();
       }
     });
@@ -1293,10 +1306,6 @@ function setupAuthViews() {
 
   document.getElementById('go-signup-btn').addEventListener('click', () => {
     clearAuthAlert();
-    if (usersDb.length >= MAX_PROFILES) {
-      showAuthAlert(`Profile limit reached (${MAX_PROFILES} maximum users allowed).`);
-      return;
-    }
     signinForm.classList.add('hidden');
     forgotForm.classList.add('hidden');
     signupForm.classList.remove('hidden');
@@ -1326,23 +1335,26 @@ function setupAuthViews() {
     authTitle.textContent = 'Sign In to Disciplined';
   });
 
-  // Safe Sign-In handler with automatic fallback
   signinForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     clearAuthAlert();
-    const identifier = document.getElementById('signin-identifier').value.trim();
+    const email = document.getElementById('signin-identifier').value.trim();
     const password = document.getElementById('signin-password').value;
 
-    // 1. Supabase Check (if active)
     if (supabaseClient && supabaseClient.auth) {
       try {
         const { data, error } = await supabaseClient.auth.signInWithPassword({
-          email: identifier,
+          email: email,
           password: password,
         });
 
-        if (!error && data?.user) {
-          loginUser({
+        if (error) {
+          showAuthAlert(error.message);
+          return;
+        }
+
+        if (data?.user) {
+          await loginUser({
             id: data.user.id,
             email: data.user.email,
             name: data.user.user_metadata?.full_name || data.user.email.split('@')[0]
@@ -1350,102 +1362,71 @@ function setupAuthViews() {
           return;
         }
       } catch (err) {
-        console.warn('Supabase auth failed, trying local storage:', err);
+        showAuthAlert('Authentication error occurred.');
       }
+    } else {
+      showAuthAlert('Supabase client is not configured.');
     }
-
-    // 2. Local Database Fallback
-    const user = usersDb.find(u => 
-      (u.username?.toLowerCase() === identifier.toLowerCase() || u.email?.toLowerCase() === identifier.toLowerCase()) && 
-      u.password === password
-    );
-
-    if (!user) {
-      showAuthAlert('Invalid username/email or password.');
-      return;
-    }
-
-    loginUser(user);
   });
 
   signupForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     clearAuthAlert();
 
-    if (usersDb.length >= MAX_PROFILES) {
-      showAuthAlert(`Cannot create profile. Maximum ${MAX_PROFILES} user accounts reached.`);
-      return;
-    }
-
     const name = document.getElementById('signup-name').value.trim();
-    const username = document.getElementById('signup-username').value.trim().toLowerCase();
     const email = document.getElementById('signup-email').value.trim().toLowerCase();
     const password = document.getElementById('signup-password').value;
 
-    if (usersDb.some(u => u.username.toLowerCase() === username)) {
-      showAuthAlert('Username already taken.');
-      return;
-    }
-
-    if (usersDb.some(u => u.email.toLowerCase() === email)) {
-      showAuthAlert('Email already registered.');
-      return;
-    }
-
-    const newUser = {
-      id: 'usr-' + Date.now(),
-      name,
-      username,
-      email,
-      password
-    };
-
     if (supabaseClient && supabaseClient.auth) {
       try {
-        await supabaseClient.auth.signUp({
+        const { data, error } = await supabaseClient.auth.signUp({
           email: email,
           password: password,
           options: { data: { full_name: name } }
         });
+
+        if (error) {
+          showAuthAlert(error.message);
+          return;
+        }
+
+        if (data?.user) {
+          const newUser = {
+            id: data.user.id,
+            name,
+            email
+          };
+          currentUserId = newUser.id;
+          appState = JSON.parse(JSON.stringify(DEFAULT_STATE_TEMPLATE));
+          await saveState();
+          await loginUser(newUser);
+          return;
+        }
       } catch (err) {
-        console.warn('Supabase signup fallback:', err);
+        showAuthAlert('Signup error occurred.');
       }
     }
-
-    usersDb.push(newUser);
-    saveUsersDatabase();
-
-    localStorage.setItem(getUserStorageKey(newUser.id), JSON.stringify(DEFAULT_STATE_TEMPLATE));
-    loginUser(newUser);
   });
 
-  forgotForm.addEventListener('submit', (e) => {
+  forgotForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     clearAuthAlert();
+    const email = document.getElementById('forgot-identifier').value.trim().toLowerCase();
 
-    const identifier = document.getElementById('forgot-identifier').value.trim().toLowerCase();
-    const newPassword = document.getElementById('forgot-new-password').value;
-
-    const user = usersDb.find(u => u.username.toLowerCase() === identifier || u.email.toLowerCase() === identifier);
-
-    if (!user) {
-      showAuthAlert('No registered profile matches that username or email.');
-      return;
+    if (supabaseClient && supabaseClient.auth) {
+      const { error } = await supabaseClient.auth.resetPasswordForEmail(email);
+      if (error) {
+        showAuthAlert(error.message);
+        return;
+      }
+      showAuthAlert('Password reset instructions sent to your email!', 'success');
     }
-
-    user.password = newPassword;
-    saveUsersDatabase();
-
-    showAuthAlert('Password reset successful! You can now sign in with your new password.', 'success');
-    setTimeout(() => {
-      forgotForm.classList.add('hidden');
-      signinForm.classList.remove('hidden');
-      authTitle.textContent = 'Sign In to Disciplined';
-      clearAuthAlert();
-    }, 1500);
   });
 
-  document.getElementById('signout-btn').addEventListener('click', () => {
+  document.getElementById('signout-btn').addEventListener('click', async () => {
+    if (supabaseClient && supabaseClient.auth) {
+      await supabaseClient.auth.signOut();
+    }
     localStorage.removeItem(CURRENT_USER_KEY);
     currentUserId = null;
     appState = null;
@@ -1453,10 +1434,11 @@ function setupAuthViews() {
   });
 }
 
-function loginUser(user) {
+async function loginUser(user) {
   currentUserId = user.id;
+  currentUserObj = user;
   localStorage.setItem(CURRENT_USER_KEY, currentUserId);
-  appState = loadUserState(currentUserId);
+  appState = await loadUserState(currentUserId);
 
   document.getElementById('auth-gate').classList.add('hidden');
   updateNavUserProfile(user);
@@ -1467,39 +1449,57 @@ function loginUser(user) {
 function updateNavUserProfile(user) {
   const nameEl = document.getElementById('active-user-name');
   const avatarEl = document.getElementById('active-avatar');
-  if (nameEl) nameEl.textContent = user.name;
+  if (nameEl) nameEl.textContent = user.name || user.email;
   if (avatarEl) {
-    const initials = user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+    const initials = (user.name || user.email).split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
     avatarEl.textContent = initials || 'U';
   }
 }
 
-function checkAuthSession() {
+async function checkAuthSession() {
   const authGate = document.getElementById('auth-gate');
-  if (currentUserId) {
-    const user = usersDb.find(u => u.id === currentUserId);
-    if (user) {
-      authGate.classList.add('hidden');
-      appState = loadUserState(currentUserId);
-      updateNavUserProfile(user);
-      setupHeaderSelectors();
-      renderApp();
-      return;
+
+  if (supabaseClient && supabaseClient.auth) {
+    try {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (session?.user) {
+        currentUserId = session.user.id;
+        const user = {
+          id: session.user.id,
+          email: session.user.email,
+          name: session.user.user_metadata?.full_name || session.user.email.split('@')[0]
+        };
+        authGate.classList.add('hidden');
+        appState = await loadUserState(currentUserId);
+        updateNavUserProfile(user);
+        setupHeaderSelectors();
+        renderApp();
+        return;
+      }
+    } catch (e) {
+      console.warn('Session check warning:', e);
     }
   }
+
+  if (currentUserId) {
+    authGate.classList.add('hidden');
+    appState = await loadUserState(currentUserId);
+    updateNavUserProfile({ id: currentUserId, name: 'Cloud User', email: '' });
+    setupHeaderSelectors();
+    renderApp();
+    return;
+  }
+
   authGate.classList.remove('hidden');
-}// Register PWA Service Worker
+}
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker
-      .register('./sw.js')
-      .then(() => console.log('Disciplined Service Worker registered successfully.'))
-      .catch((err) => console.warn('Service Worker registration failed:', err));
+    navigator.serviceWorker.register('./sw.js').catch((err) => console.warn('SW error:', err));
   });
 }
-// --- PWA INSTALL HANDLER ---
-let deferredPrompt = null;
 
+let deferredPrompt = null;
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredPrompt = e;
@@ -1511,7 +1511,6 @@ function setupInstallButton() {
 
   installBtn.addEventListener('click', async (e) => {
     e.preventDefault();
-
     if (deferredPrompt) {
       deferredPrompt.prompt();
       const choiceResult = await deferredPrompt.userChoice;
@@ -1519,31 +1518,12 @@ function setupInstallButton() {
         installBtn.classList.add('hidden');
       }
       deferredPrompt = null;
-    } else {
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-      if (isIOS) {
-        alert("To install on iOS:\n1. Tap the Share icon (box with upward arrow ↑) in Safari.\n2. Scroll down and tap 'Add to Home Screen'.");
-      } else {
-        alert("To install on this device:\n1. Click the browser menu (⋮) in the top-right.\n2. Select 'Install Disciplined' or 'Add to Home Screen'.");
-      }
     }
   });
 }
-
-window.addEventListener('appinstalled', () => {
-  const installBtn = document.getElementById('pwa-install-btn');
-  if (installBtn) installBtn.classList.add('hidden');
-  deferredPrompt = null;
-});
 
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', setupInstallButton);
 } else {
   setupInstallButton();
-}
-
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch((err) => console.warn('SW error:', err));
-  });
 }
