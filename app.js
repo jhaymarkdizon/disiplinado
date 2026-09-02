@@ -73,8 +73,6 @@ const DEFAULT_STATE_TEMPLATE = {
 let currentUser = null;
 let appState = null;
 
-// --- DATABASE SYNC LAYER (Supabase matching schema: profiles, user_states, transactions) ---
-
 async function loadUserStateFromSupabase(userId) {
   if (!supabaseClient) return null;
   try {
@@ -120,7 +118,6 @@ async function logTransactionToSupabase(userId, tx) {
   }
 }
 
-// Local fallback storage wrappers using user ID keys
 function loadUserStateLocal(userId) {
   try {
     const raw = localStorage.getItem(`disciplined_vault_user_${userId}`);
@@ -656,6 +653,8 @@ function renderOverviewPanels() {
   const liquidContainer = document.getElementById('overview-liquid-list');
   const creditContainer = document.getElementById('overview-credit-list');
   
+  if (!liquidContainer || !creditContainer) return;
+
   liquidContainer.innerHTML = '';
   creditContainer.innerHTML = '';
 
@@ -730,8 +729,10 @@ function renderOverviewPanels() {
     });
   }
 
-  document.getElementById('overview-total-liquid').textContent = formatPHP(totalLiquid);
-  document.getElementById('overview-total-debt').textContent = formatPHP(totalDebt);
+  const elLiquidTotal = document.getElementById('overview-total-liquid');
+  const elDebtTotal = document.getElementById('overview-total-debt');
+  if (elLiquidTotal) elLiquidTotal.textContent = formatPHP(totalLiquid);
+  if (elDebtTotal) elDebtTotal.textContent = formatPHP(totalDebt);
 }
 
 function renderKPIs(monthData) {
@@ -1211,14 +1212,21 @@ function renderAccounts() {
     grid.appendChild(card);
   });
 
-  document.getElementById('cash-total').textContent = formatPHP(totalLiquid);
-  document.getElementById('debt-total').textContent = formatPHP(totalDebtUsed);
-  document.getElementById('available-total').textContent = formatPHP(totalAvailableCredit);
-  document.getElementById('wallet-total').textContent = formatPHP(totalLiquid - totalDebtUsed);
+  const elCashTotal = document.getElementById('cash-total');
+  const elDebtTotal = document.getElementById('debt-total');
+  const elAvailableTotal = document.getElementById('available-total');
+  const elWalletTotal = document.getElementById('wallet-total');
+
+  if (elCashTotal) elCashTotal.textContent = formatPHP(totalLiquid);
+  if (elDebtTotal) elDebtTotal.textContent = formatPHP(totalDebtUsed);
+  if (elAvailableTotal) elAvailableTotal.textContent = formatPHP(totalAvailableCredit);
+  if (elWalletTotal) elWalletTotal.textContent = formatPHP(totalLiquid - totalDebtUsed);
 }
 
 function renderMonthlyChart(monthData) {
-  const ctx = document.getElementById('monthlyChart').getContext('2d');
+  const canvasEl = document.getElementById('monthlyChart');
+  if (!canvasEl) return;
+  const ctx = canvasEl.getContext('2d');
   const totalIncome = monthData.incomes.reduce((acc, i) => acc + Number(i.amount || 0), 0);
   const totalExpenses = monthData.expenses.reduce((acc, e) => acc + Number(e.amount || 0), 0);
   const totalBills = monthData.bills
@@ -1255,6 +1263,7 @@ function renderMonthlyChart(monthData) {
 
 function renderAnnualLedger() {
   const tbody = document.getElementById('annual-table-body');
+  if (!tbody) return;
   tbody.innerHTML = '';
 
   let annualInc = 0;
@@ -1296,7 +1305,9 @@ function renderAnnualLedger() {
   document.getElementById('annual-outgoings').textContent = formatPHP(annualOut);
   document.getElementById('annual-net').textContent = formatPHP(annualInc - annualOut);
 
-  const actx = document.getElementById('annualChart').getContext('2d');
+  const actxEl = document.getElementById('annualChart');
+  if (!actxEl) return;
+  const actx = actxEl.getContext('2d');
   if (annualChartInstance) {
     annualChartInstance.destroy();
   }
@@ -1322,6 +1333,7 @@ function renderAnnualLedger() {
 
 function showAuthAlert(msg, type = 'error') {
   const alertEl = document.getElementById('auth-alert');
+  if (!alertEl) return;
   alertEl.textContent = msg;
   alertEl.className = `mb-4 rounded-xl p-3 text-xs font-bold ${
     type === 'error' ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
@@ -1331,6 +1343,7 @@ function showAuthAlert(msg, type = 'error') {
 
 function clearAuthAlert() {
   const alertEl = document.getElementById('auth-alert');
+  if (!alertEl) return;
   alertEl.classList.add('hidden');
   alertEl.textContent = '';
 }
@@ -1341,6 +1354,8 @@ function setupAuthViews() {
   const signupForm = document.getElementById('signup-form');
   const forgotForm = document.getElementById('forgot-form');
   const authTitle = document.getElementById('auth-title');
+
+  if (!signinForm || !signupForm) return;
 
   document.getElementById('go-signup-btn').addEventListener('click', () => {
     clearAuthAlert();
@@ -1373,7 +1388,6 @@ function setupAuthViews() {
     authTitle.textContent = 'Sign In to Disciplined';
   });
 
-  // Supabase Authenticated Sign In
   signinForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     clearAuthAlert();
@@ -1394,7 +1408,6 @@ function setupAuthViews() {
 
         if (data?.user) {
           let profileName = data.user.user_metadata?.full_name || identifier.split('@')[0];
-          // Try fetching from profiles table
           const { data: profData } = await supabaseClient.from('profiles').select('name').eq('id', data.user.id).single();
           if (profData && profData.name) profileName = profData.name;
 
@@ -1414,7 +1427,6 @@ function setupAuthViews() {
     }
   });
 
-  // Supabase Authenticated Sign Up (Matches profiles schema)
   signupForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     clearAuthAlert();
@@ -1437,7 +1449,6 @@ function setupAuthViews() {
         }
 
         if (data?.user) {
-          // Insert row into public.profiles table matching the schema visualization
           await supabaseClient.from('profiles').upsert({
             id: data.user.id,
             email: email,
@@ -1445,7 +1456,6 @@ function setupAuthViews() {
             created_at: new Date().toISOString()
           });
 
-          // Initialize default user state row in user_states table
           await supabaseClient.from('user_states').upsert({
             user_id: data.user.id,
             state: DEFAULT_STATE_TEMPLATE,
@@ -1469,7 +1479,6 @@ function setupAuthViews() {
     }
   });
 
-  // Supabase Password Recovery / Reset
   forgotForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     clearAuthAlert();
@@ -1492,15 +1501,18 @@ function setupAuthViews() {
     }
   });
 
-  document.getElementById('signout-btn').addEventListener('click', async () => {
-    if (supabaseClient && supabaseClient.auth) {
-      await supabaseClient.auth.signOut();
-    }
-    localStorage.removeItem(CURRENT_USER_KEY);
-    currentUser = null;
-    appState = null;
-    checkAuthSession();
-  });
+  const signoutBtn = document.getElementById('signout-btn');
+  if (signoutBtn) {
+    signoutBtn.addEventListener('click', async () => {
+      if (supabaseClient && supabaseClient.auth) {
+        await supabaseClient.auth.signOut();
+      }
+      localStorage.removeItem(CURRENT_USER_KEY);
+      currentUser = null;
+      appState = null;
+      checkAuthSession();
+    });
+  }
 }
 
 async function loginUser(user) {
@@ -1508,7 +1520,8 @@ async function loginUser(user) {
   localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
   appState = await loadUserState(user.id);
 
-  document.getElementById('auth-gate').classList.add('hidden');
+  const authGate = document.getElementById('auth-gate');
+  if (authGate) authGate.classList.add('hidden');
   updateNavUserProfile(user);
   setupHeaderSelectors();
   renderApp();
@@ -1526,8 +1539,8 @@ function updateNavUserProfile(user) {
 
 async function checkAuthSession() {
   const authGate = document.getElementById('auth-gate');
+  if (!authGate) return;
   
-  // 1. Check Supabase active session first
   if (supabaseClient && supabaseClient.auth) {
     try {
       const { data: { session } } = await supabaseClient.auth.getSession();
@@ -1553,7 +1566,6 @@ async function checkAuthSession() {
     }
   }
 
-  // 2. Local fallback session
   const storedUserRaw = localStorage.getItem(CURRENT_USER_KEY);
   if (storedUserRaw) {
     try {
@@ -1575,7 +1587,6 @@ async function checkAuthSession() {
   authGate.classList.remove('hidden');
 }
 
-// Register PWA Service Worker
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker
