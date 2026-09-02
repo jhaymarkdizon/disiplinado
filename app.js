@@ -3,8 +3,8 @@
  */
 
 // Optional Supabase Configuration (Leave blank or insert your real credentials)
-const SUPABASE_URL = ''; 
-const SUPABASE_ANON_KEY = '';
+const SUPABASE_URL = 'https://vwyiygetdbnibwlfpcjy.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3eWl5Z2V0ZGJuaWJ3bGZwY2p5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzMzU2ODMsImV4cCI6MjEwMzkxMTY4M30.1jldKZKmMlkRwqQ6TLsrPaoHDgWEo9mBYdcuL7WLNAQ';
 
 let supabaseClient = null;
 if (window.supabase && SUPABASE_URL && !SUPABASE_URL.includes('YOUR_')) {
