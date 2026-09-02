@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="disciplinedBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="50%" stop-color="#059669" />
+      <stop offset="100%" stop-color="#0f766e" />
+    </linearGradient>
+
+    <filter id="subtleDrop" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#022c22" flood-opacity="0.35" />
+    </filter>
+  </defs>
+
+  <rect width="512" height="512" rx="120" fill="url(#disciplinedBg)" />
+
+  <g filter="url(#subtleDrop)">
+    <path
+      d="M152 110 H272 C362 110 424 172 424 256 C424 340 362 402 272 402 H152 Z"
+      fill="none"
+      stroke="#ffffff"
+      stroke-width="52"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+
+    <rect
+      x="128"
+      y="110"
+      width="44"
+      height="292"
+      rx="22"
+      fill="#6ee7b7"
+    />
+
+    <circle
+      cx="272"
+      cy="256"
+      r="36"
+      fill="#ffffff"
+    />
+  </g>
+</svg>
