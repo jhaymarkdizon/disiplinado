@@ -1488,4 +1488,12 @@ function checkAuthSession() {
     }
   }
   authGate.classList.remove('hidden');
+}// Register PWA Service Worker
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('./sw.js')
+      .then(() => console.log('Disciplined Service Worker registered successfully.'))
+      .catch((err) => console.warn('Service Worker registration failed:', err));
+  });
 }

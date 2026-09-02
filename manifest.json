@@ -1,0 +1,17 @@
+{
+  "name": "Disciplined Budget Tracker",
+  "short_name": "Disciplined",
+  "description": "Multi-Profile Personal Finance and Cashflow Tracker",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#059669",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%23059669'/><path d='M26 18H52C70 18 84 32 84 50C84 68 70 82 52 82H26V18Z' stroke='white' stroke-width='11' stroke-linecap='round' stroke-linejoin='round' fill='none'/><rect x='22' y='18' width='9' height='64' rx='4.5' fill='%2334d399'/><circle cx='50' cy='50' r='8' fill='white'/></svg>",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
