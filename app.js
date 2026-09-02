@@ -1,18 +1,12 @@
 /**
- * Disciplined Budget Tracker - Application Logic
- * 
- * Features:
- * 1. Clean Slate State (No pre-loaded demo accounts or balances).
- * 2. Multi-Profile Access (Sign In, Profile Creation, Direct Password Reset, Sign Out).
- * 3. Dynamic Year Generator starting at 2026 and scaling forward continuously.
- * 4. Monthly Overview with Right-Side Live Bank Balances & Credit Card Remaining to Pay.
- * 5. Credit Card Bill Direction (Debit vs Credit) auto-reducing credit card balance when paid.
- * 6. Automatic Brand Color Recognition for PH Banks & Credit Cards based on name.
+ * Disciplined Budget Tracker - Application Logic (Supabase Integrated)
  */
 
-const USERS_STORAGE_KEY = 'disciplined_users_db_v1';
-const CURRENT_USER_KEY = 'disciplined_active_user_id';
-const MAX_PROFILES = 5;
+// SUPABASE CLIENT INITIALIZATION
+const SUPABASE_URL = 'https://vwyiygetdbnibwlfpcjy.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_LZoYjXyaRMP0pMWWFS5Qzg_14DDSiYT';
+
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -58,53 +52,42 @@ function getAutoBrandColor(accountName, type = 'bank') {
   return match ? match.color : (type === 'credit' ? 'from-slate-900 to-zinc-950' : 'from-slate-800 to-slate-950');
 }
 
-// Clean Slate Template: Completely fresh start
 const DEFAULT_STATE_TEMPLATE = {
   selectedYear: 2026,
-  selectedMonth: 0, // January
+  selectedMonth: 0,
   activeTab: 'monthly',
   accounts: [],
   months: {}
 };
 
-let usersDb = loadUsersDatabase();
-let currentUserId = localStorage.getItem(CURRENT_USER_KEY);
+let currentUser = null;
 let appState = null;
 
-function loadUsersDatabase() {
+async function loadUserState(userId) {
   try {
-    const raw = localStorage.getItem(USERS_STORAGE_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw);
-  } catch (e) {
-    return [];
-  }
-}
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('state')
+      .eq('id', userId)
+      .single();
 
-function saveUsersDatabase() {
-  localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(usersDb));
-}
-
-function getUserStorageKey(userId) {
-  return `disciplined_vault_user_${userId}`;
-}
-
-function loadUserState(userId) {
-  try {
-    const raw = localStorage.getItem(getUserStorageKey(userId));
-    if (!raw) return JSON.parse(JSON.stringify(DEFAULT_STATE_TEMPLATE));
-    return JSON.parse(raw);
+    if (error || !data || !data.state) {
+      return JSON.parse(JSON.stringify(DEFAULT_STATE_TEMPLATE));
+    }
+    return data.state;
   } catch (e) {
     return JSON.parse(JSON.stringify(DEFAULT_STATE_TEMPLATE));
   }
 }
 
-function saveState() {
-  if (!currentUserId) return;
-  localStorage.setItem(getUserStorageKey(currentUserId), JSON.stringify(appState));
+async function saveState() {
+  if (!currentUser) return;
+  
+  await supabase
+    .from('user_profiles')
+    .upsert({ id: currentUser.id, state: appState });
 }
 
-// Auto-creates month container and detects previous month's unpaid bills for rollover
 function ensureMonthData(year, month) {
   if (!appState) return { incomes: [], expenses: [], bills: [], savings: [] };
   const key = `${year}-${month}`;
@@ -153,11 +136,6 @@ function ensureMonthData(year, month) {
   return appState.months[key];
 }
 
-/**
- * Dynamic Balance Calculation Formula:
- * - Bank Accounts: Baseline + Income - Expenses - Paid Normal Debits
- * - Credit Cards: Baseline Debt + Expenses - Paid Credit Card Payments
- */
 function calculateAccountBalance(accountId) {
   if (!appState) return 0;
   const account = appState.accounts.find((a) => a.id === accountId);
@@ -277,7 +255,6 @@ function closeCenteredDialog(result = null) {
   }
 }
 
-// Lifecycle Initialization
 document.addEventListener('DOMContentLoaded', () => {
   setupAuthViews();
   setupHeaderSelectors();
@@ -288,7 +265,6 @@ document.addEventListener('DOMContentLoaded', () => {
   checkAuthSession();
 });
 
-// Dynamic Year Generator: Starts at 2026 and provides a continuous runway forward
 function setupHeaderSelectors() {
   const yearSelect = document.getElementById('year-select');
   const monthSelect = document.getElementById('month-select');
@@ -1296,10 +1272,6 @@ function setupAuthViews() {
 
   document.getElementById('go-signup-btn').addEventListener('click', () => {
     clearAuthAlert();
-    if (usersDb.length >= MAX_PROFILES) {
-      showAuthAlert(`Profile limit reached (${MAX_PROFILES} maximum users allowed).`);
-      return;
-    }
     signinForm.classList.add('hidden');
     forgotForm.classList.add('hidden');
     signupForm.classList.remove('hidden');
@@ -1329,103 +1301,84 @@ function setupAuthViews() {
     authTitle.textContent = 'Sign In to Disciplined';
   });
 
-  signinForm.addEventListener('submit', (e) => {
+  // Supabase Auth Sign-In
+  signinForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     clearAuthAlert();
-    const identifier = document.getElementById('signin-identifier').value.trim().toLowerCase();
+    const email = document.getElementById('signin-identifier').value.trim();
     const password = document.getElementById('signin-password').value;
 
-    const user = usersDb.find(u => 
-      (u.username.toLowerCase() === identifier || u.email.toLowerCase() === identifier) && u.password === password
-    );
-
-    if (!user) {
-      showAuthAlert('Invalid username/email or password.');
-      return;
-    }
-
-    loginUser(user);
-  });
-
-  signupForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    clearAuthAlert();
-
-    if (usersDb.length >= MAX_PROFILES) {
-      showAuthAlert(`Cannot create profile. Maximum ${MAX_PROFILES} user accounts reached.`);
-      return;
-    }
-
-    const name = document.getElementById('signup-name').value.trim();
-    const username = document.getElementById('signup-username').value.trim().toLowerCase();
-    const email = document.getElementById('signup-email').value.trim().toLowerCase();
-    const password = document.getElementById('signup-password').value;
-
-    if (usersDb.some(u => u.username.toLowerCase() === username)) {
-      showAuthAlert('Username already taken.');
-      return;
-    }
-
-    if (usersDb.some(u => u.email.toLowerCase() === email)) {
-      showAuthAlert('Email already registered.');
-      return;
-    }
-
-    const newUser = {
-      id: 'usr-' + Date.now(),
-      name,
-      username,
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password
-    };
+    });
 
-    usersDb.push(newUser);
-    saveUsersDatabase();
-
-    localStorage.setItem(getUserStorageKey(newUser.id), JSON.stringify(DEFAULT_STATE_TEMPLATE));
-
-    loginUser(newUser);
-  });
-
-  // Direct In-App Password Reset
-  forgotForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    clearAuthAlert();
-
-    const identifier = document.getElementById('forgot-identifier').value.trim().toLowerCase();
-    const newPassword = document.getElementById('forgot-new-password').value;
-
-    const user = usersDb.find(u => u.username.toLowerCase() === identifier || u.email.toLowerCase() === identifier);
-
-    if (!user) {
-      showAuthAlert('No registered profile matches that username or email.');
+    if (error) {
+      showAuthAlert(error.message);
       return;
     }
 
-    user.password = newPassword;
-    saveUsersDatabase();
-
-    showAuthAlert('Password reset successful! You can now sign in with your new password.', 'success');
-    setTimeout(() => {
-      forgotForm.classList.add('hidden');
-      signinForm.classList.remove('hidden');
-      authTitle.textContent = 'Sign In to Disciplined';
-      clearAuthAlert();
-    }, 1500);
+    loginUser(data.user);
   });
 
-  document.getElementById('signout-btn').addEventListener('click', () => {
-    localStorage.removeItem(CURRENT_USER_KEY);
-    currentUserId = null;
+  // Supabase Auth Sign-Up
+  signupForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearAuthAlert();
+
+    const name = document.getElementById('signup-name').value.trim();
+    const email = document.getElementById('signup-email').value.trim();
+    const password = document.getElementById('signup-password').value;
+
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { display_name: name }
+      }
+    });
+
+    if (error) {
+      showAuthAlert(error.message);
+      return;
+    }
+
+    if (data.user) {
+      await supabase.from('user_profiles').insert([
+        { id: data.user.id, display_name: name, state: DEFAULT_STATE_TEMPLATE }
+      ]);
+      loginUser(data.user);
+    }
+  });
+
+  // Supabase Reset Password
+  forgotForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearAuthAlert();
+
+    const email = document.getElementById('forgot-identifier').value.trim();
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+
+    if (error) {
+      showAuthAlert(error.message);
+      return;
+    }
+
+    showAuthAlert('Password reset email sent successfully!', 'success');
+  });
+
+  document.getElementById('signout-btn').addEventListener('click', async () => {
+    await supabase.auth.signOut();
+    currentUser = null;
     appState = null;
     checkAuthSession();
   });
 }
 
-function loginUser(user) {
-  currentUserId = user.id;
-  localStorage.setItem(CURRENT_USER_KEY, currentUserId);
-  appState = loadUserState(currentUserId);
+async function loginUser(user) {
+  currentUser = user;
+  appState = await loadUserState(currentUser.id);
 
   document.getElementById('auth-gate').classList.add('hidden');
   updateNavUserProfile(user);
@@ -1436,25 +1389,28 @@ function loginUser(user) {
 function updateNavUserProfile(user) {
   const nameEl = document.getElementById('active-user-name');
   const avatarEl = document.getElementById('active-avatar');
-  if (nameEl) nameEl.textContent = user.name;
+  
+  const displayName = user.user_metadata?.display_name || user.email.split('@')[0];
+  
+  if (nameEl) nameEl.textContent = displayName;
   if (avatarEl) {
-    const initials = user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+    const initials = displayName.substring(0, 2).toUpperCase();
     avatarEl.textContent = initials || 'U';
   }
 }
 
-function checkAuthSession() {
+async function checkAuthSession() {
   const authGate = document.getElementById('auth-gate');
-  if (currentUserId) {
-    const user = usersDb.find(u => u.id === currentUserId);
-    if (user) {
-      authGate.classList.add('hidden');
-      appState = loadUserState(currentUserId);
-      updateNavUserProfile(user);
-      setupHeaderSelectors();
-      renderApp();
-      return;
-    }
+  const { data: { session } } = await supabase.auth.getSession();
+  
+  if (session && session.user) {
+    currentUser = session.user;
+    authGate.classList.add('hidden');
+    appState = await loadUserState(currentUser.id);
+    updateNavUserProfile(currentUser);
+    setupHeaderSelectors();
+    renderApp();
+  } else {
+    authGate.classList.remove('hidden');
   }
-  authGate.classList.remove('hidden');
 }
