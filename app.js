@@ -5,7 +5,6 @@
 // SUPABASE CLIENT INITIALIZATION
 const SUPABASE_URL = 'https://vwyiygetdbnibwlfpcjy.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_LZoYjXyaRMP0pMWWFS5Qzg_14DDSiYT';
-
 const db = window.supabase.createClient(
   SUPABASE_URL,
   SUPABASE_ANON_KEY
@@ -60,9 +59,7 @@ const BRAND_PRESETS = [
 function getAutoBrandColor(accountName, type = 'bank') {
   if (!accountName) return type === 'credit' ? 'from-slate-900 to-zinc-950' : 'from-slate-800 to-slate-950';
   const query = accountName.toLowerCase().trim();
-  const match = BRAND_PRESETS.find(preset =>
-    preset.keywords.some(k => query.includes(k))
-  );
+  const match = BRAND_PRESETS.find(preset => preset.keywords.some(k => query.includes(k)));
   return match ? match.color : (type === 'credit' ? 'from-slate-900 to-zinc-950' : 'from-slate-800 to-slate-950');
 }
 
@@ -84,7 +81,6 @@ async function loadUserState(userId) {
       .select('state')
       .eq('id', userId)
       .single();
-
     if (error || !data || !data.state) {
       return JSON.parse(JSON.stringify(DEFAULT_STATE_TEMPLATE));
     }
@@ -96,7 +92,6 @@ async function loadUserState(userId) {
 
 async function saveState() {
   if (!currentUser) return;
-  
   await db
     .from('user_profiles')
     .upsert({ id: currentUser.id, state: appState });
@@ -106,14 +101,8 @@ function ensureMonthData(year, month) {
   if (!appState) return { incomes: [], expenses: [], bills: [], savings: [] };
   const key = `${year}-${month}`;
   if (!appState.months[key]) {
-    appState.months[key] = {
-      incomes: [],
-      expenses: [],
-      bills: [],
-      savings: []
-    };
+    appState.months[key] = { incomes: [], expenses: [], bills: [], savings: [] };
   }
-
   let prevMonth = month - 1;
   let prevYear = year;
   if (prevMonth < 0) {
@@ -122,14 +111,12 @@ function ensureMonthData(year, month) {
   }
   const prevKey = `${prevYear}-${prevMonth}`;
   const prevData = appState.months[prevKey];
-
   if (prevData && prevData.bills) {
     prevData.bills.forEach((prevBill) => {
       if (!prevBill.paid) {
         const alreadyRolled = appState.months[key].bills.some(
           (b) => b.originalId === prevBill.id || (b.label === prevBill.label && b.arrearsFrom === MONTH_NAMES[prevMonth])
         );
-
         if (!alreadyRolled) {
           appState.months[key].bills.unshift({
             id: 'rollover-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
@@ -146,7 +133,6 @@ function ensureMonthData(year, month) {
       }
     });
   }
-
   return appState.months[key];
 }
 
@@ -154,18 +140,15 @@ function calculateAccountBalance(accountId) {
   if (!appState) return 0;
   const account = appState.accounts.find((a) => a.id === accountId);
   if (!account) return 0;
-
   const currentMonthData = ensureMonthData(appState.selectedYear, appState.selectedMonth);
 
   if (account.type === 'credit' || account.type === 'loan') {
     let usedDebt = Number(account.creditUsed || 0);
-
     currentMonthData.expenses.forEach((exp) => {
       if (exp.accountId === accountId) {
         usedDebt += Number(exp.amount || 0);
       }
     });
-
     currentMonthData.bills.forEach((bill) => {
       if (bill.accountId === accountId && bill.paid) {
         if (bill.direction === 'credit') {
@@ -175,24 +158,20 @@ function calculateAccountBalance(accountId) {
         }
       }
     });
-
     currentMonthData.incomes.forEach((inc) => {
       if (inc.accountId === accountId) {
         usedDebt -= Number(inc.amount || 0);
       }
     });
-
     return Math.max(0, usedDebt);
   }
 
   let balance = Number(account.baselineBalance || 0);
-
   currentMonthData.incomes.forEach((inc) => {
     if (inc.accountId === accountId) {
       balance += Number(inc.amount || 0);
     }
   });
-
   currentMonthData.bills.forEach((bill) => {
     if (bill.accountId === accountId && bill.paid) {
       if (bill.direction !== 'credit') {
@@ -200,13 +179,11 @@ function calculateAccountBalance(accountId) {
       }
     }
   });
-
   currentMonthData.expenses.forEach((exp) => {
     if (exp.accountId === accountId) {
       balance -= Number(exp.amount || 0);
     }
   });
-
   return balance;
 }
 
@@ -220,7 +197,6 @@ let activeDialogResolver = null;
 function showCenteredDialog({ title, badge = 'Action Required', description, defaultValue = '', inputType = 'number', prefix = '₱', isConfirm = false }) {
   return new Promise((resolve) => {
     activeDialogResolver = resolve;
-
     const modal = document.getElementById('dialog-modal');
     const titleEl = document.getElementById('dialog-title');
     const badgeEl = document.getElementById('dialog-badge');
@@ -245,14 +221,12 @@ function showCenteredDialog({ title, badge = 'Action Required', description, def
       prefixEl.style.display = prefix ? 'flex' : 'none';
       if (!prefix) inputEl.classList.remove('pl-8');
       else inputEl.classList.add('pl-8');
-
       confirmBtn.className = 'rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-emerald-500 shadow-md transition';
       confirmBtn.textContent = 'Save Changes';
     }
 
     modal.classList.remove('hidden');
     modal.classList.add('flex');
-
     if (!isConfirm) {
       setTimeout(() => inputEl.focus(), 50);
     }
@@ -282,12 +256,11 @@ document.addEventListener('DOMContentLoaded', () => {
 function setupHeaderSelectors() {
   const yearSelect = document.getElementById('year-select');
   const monthSelect = document.getElementById('month-select');
-
   const START_YEAR = 2026;
   const currentActualYear = new Date().getFullYear();
   const endYear = Math.max(currentActualYear + 30, (appState?.selectedYear || START_YEAR) + 10, START_YEAR + 50);
-
   const availableYears = [];
+
   for (let y = START_YEAR; y <= endYear; y++) {
     availableYears.push(y);
   }
@@ -298,7 +271,7 @@ function setupHeaderSelectors() {
 
   const activeYear = appState ? appState.selectedYear : START_YEAR;
   yearSelect.innerHTML = availableYears
-    .map((y) => `<option value="${y}" ${y === activeYear ? 'selected' : ''}>Year ${y}</option>`)
+    .map((y) => `<option value="${y}" ${y === activeYear ? 'selected' : ''}>${y}</option>`)
     .join('');
 
   const activeMonth = appState ? appState.selectedMonth : 0;
@@ -329,11 +302,9 @@ function setupTabNavigation() {
         b.className = 'tab-button inactive rounded-lg px-4 py-2 text-xs font-bold transition';
       });
       btn.className = 'tab-button active rounded-lg px-4 py-2 text-xs font-bold transition';
-
       document.getElementById('monthly-view').classList.toggle('hidden', appState.activeTab !== 'monthly');
       document.getElementById('annual-view').classList.toggle('hidden', appState.activeTab !== 'annual');
       document.getElementById('accounts-view').classList.toggle('hidden', appState.activeTab !== 'accounts');
-
       saveState();
       renderApp();
     });
@@ -367,7 +338,10 @@ function setupEntryModal() {
   document.getElementById('add-savings-btn').addEventListener('click', () => openEntryModalFor('savings'));
 
   categorySelect.innerHTML = CATEGORIES.map((c) => `<option value="${c}">${c}</option>`).join('');
-  addEntryBtn.addEventListener('click', () => openEntryModalFor('income'));
+
+  if (addEntryBtn) {
+    addEntryBtn.addEventListener('click', () => openEntryModalFor('income'));
+  }
 
   function openEntryModalFor(type) {
     populateAccountSelectOptions();
@@ -388,6 +362,7 @@ function setupEntryModal() {
 
   closeBtn.addEventListener('click', closeModal);
   cancelBtn.addEventListener('click', closeModal);
+
   typeSelect.addEventListener('change', (e) => updateModalFields(e.target.value));
 
   function updateModalFields(type) {
@@ -410,7 +385,6 @@ function setupEntryModal() {
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     if (!appState) return;
-
     const type = typeSelect.value;
     const label = document.getElementById('entry-label').value.trim();
     const amount = parseFloat(document.getElementById('entry-amount').value) || 0;
@@ -445,7 +419,6 @@ function openAccountModal(editAccountId = null) {
   const badgeEl = document.getElementById('account-modal-badge');
   const saveBtn = document.getElementById('save-account-btn');
   const typeSelect = document.getElementById('account-type');
-
   const liquidGroup = document.getElementById('liquid-account-fields');
   const creditGroup = document.getElementById('credit-card-fields');
 
@@ -466,7 +439,6 @@ function openAccountModal(editAccountId = null) {
       document.getElementById('account-name').value = existing.name;
       typeSelect.value = existing.type || 'bank';
       document.getElementById('account-last-four').value = existing.lastFour || '';
-
       if (existing.type === 'credit' || existing.type === 'loan') {
         document.getElementById('account-limit').value = existing.creditLimit || '';
         document.getElementById('account-used').value = existing.creditUsed || '';
@@ -475,7 +447,6 @@ function openAccountModal(editAccountId = null) {
         document.getElementById('account-balance').value = existing.baselineBalance || '';
         document.getElementById('account-tag').value = existing.tag || '';
       }
-
       titleEl.textContent = 'Edit Card / Account';
       badgeEl.textContent = 'Update Details';
       saveBtn.textContent = 'Update Changes';
@@ -506,14 +477,15 @@ function setupAccountModal() {
     modal.classList.remove('flex');
   }
 
-  openBtn.addEventListener('click', () => openAccountModal(null));
+  if (openBtn) {
+    openBtn.addEventListener('click', () => openAccountModal(null));
+  }
   closeBtn.addEventListener('click', closeModal);
   cancelBtn.addEventListener('click', closeModal);
 
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     if (!appState) return;
-
     const id = document.getElementById('account-id').value || 'acc-' + Date.now();
     const name = document.getElementById('account-name').value.trim();
     const type = typeSelect.value;
@@ -576,7 +548,6 @@ let annualChartInstance = null;
 
 function renderApp() {
   if (!appState) return;
-
   const currentMonthData = ensureMonthData(appState.selectedYear, appState.selectedMonth);
 
   renderKPIs(currentMonthData);
@@ -597,7 +568,6 @@ function renderApp() {
 function renderOverviewPanels() {
   const liquidContainer = document.getElementById('overview-liquid-list');
   const creditContainer = document.getElementById('overview-credit-list');
-  
   liquidContainer.innerHTML = '';
   creditContainer.innerHTML = '';
 
@@ -608,27 +578,21 @@ function renderOverviewPanels() {
   const creditAccounts = appState.accounts.filter(a => a.type === 'credit' || a.type === 'loan');
 
   if (liquidAccounts.length === 0) {
-    liquidContainer.innerHTML = '<p class="text-xs text-slate-400 py-2">No bank accounts registered.</p>';
+    liquidContainer.innerHTML = '<p class="text-xs text-slate-400 italic">No bank accounts registered.</p>';
   } else {
     liquidAccounts.forEach(acc => {
       const balance = calculateAccountBalance(acc.id);
       totalLiquid += balance;
-
       const item = document.createElement('div');
       item.className = 'flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/70 p-3 hover:bg-slate-100/70 transition';
       item.innerHTML = `
-        <div class="flex items-center gap-2.5">
-          <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 font-black text-xs">
-            <i data-lucide="${acc.type === 'wallet' ? 'smartphone' : 'building'}" class="h-4 w-4"></i>
-          </div>
-          <div>
-            <h4 class="text-xs font-bold text-slate-900">${acc.name}</h4>
-            <p class="text-[10px] text-slate-500 font-semibold">${acc.tag || 'Savings'} •••• ${acc.lastFour || '0000'}</p>
-          </div>
+        <div>
+          <h4 class="text-xs font-bold text-slate-800">${acc.name}</h4>
+          <p class="text-[10px] text-slate-500">${acc.tag || 'Savings'} •••• ${acc.lastFour || '0000'}</p>
         </div>
         <div class="text-right">
-          <p class="text-xs font-black text-slate-900">${formatPHP(balance)}</p>
-          <span class="text-[9px] font-bold uppercase tracking-wider text-emerald-700">Remaining</span>
+          <p class="text-xs font-bold text-emerald-600">${formatPHP(balance)}</p>
+          <p class="text-[10px] text-slate-400">Remaining</p>
         </div>
       `;
       liquidContainer.appendChild(item);
@@ -636,7 +600,7 @@ function renderOverviewPanels() {
   }
 
   if (creditAccounts.length === 0) {
-    creditContainer.innerHTML = '<p class="text-xs text-slate-400 py-2">No credit cards or financing active.</p>';
+    creditContainer.innerHTML = '<p class="text-xs text-slate-400 italic">No credit cards or financing active.</p>';
   } else {
     creditAccounts.forEach(acc => {
       const debtToPay = calculateAccountBalance(acc.id);
@@ -647,25 +611,17 @@ function renderOverviewPanels() {
       const item = document.createElement('div');
       item.className = 'rounded-xl border border-amber-100 bg-amber-50/40 p-3 hover:bg-amber-50/70 transition';
       item.innerHTML = `
-        <div class="flex items-center justify-between mb-1.5">
-          <div class="flex items-center gap-2">
-            <span class="flex h-2 w-2 rounded-full bg-rose-500"></span>
-            <h4 class="text-xs font-bold text-slate-900">${acc.name}</h4>
-          </div>
-          <span class="text-[10px] font-extrabold uppercase tracking-wider text-amber-800 bg-amber-100/90 px-2 py-0.5 rounded-md">
-            Due ${acc.dueDay || '15th'}
-          </span>
+        <div class="flex items-center justify-between mb-1">
+          <h4 class="text-xs font-bold text-slate-800">${acc.name}</h4>
+          <span class="text-[10px] font-bold text-amber-700">Due ${acc.dueDay || '15th'}</span>
         </div>
-
-        <div class="flex items-baseline justify-between mt-1">
-          <div>
-            <p class="text-sm font-black text-rose-600">${formatPHP(debtToPay)}</p>
-            <p class="text-[10px] font-semibold text-slate-500">Balance to pay this cycle</p>
-          </div>
-          <div class="text-right">
-            <p class="text-xs font-bold text-slate-700">${formatPHP(available)}</p>
-            <p class="text-[10px] font-semibold text-slate-400">Available credit</p>
-          </div>
+        <div class="flex items-center justify-between text-xs">
+          <span class="font-bold text-rose-600">${formatPHP(debtToPay)}</span>
+          <span class="text-[10px] text-slate-500">Balance to pay this cycle</span>
+        </div>
+        <div class="flex items-center justify-between text-[10px] text-slate-400 mt-1">
+          <span>${formatPHP(available)}</span>
+          <span>Available credit</span>
         </div>
       `;
       creditContainer.appendChild(item);
@@ -679,12 +635,11 @@ function renderOverviewPanels() {
 function renderKPIs(monthData) {
   const totalIncome = monthData.incomes.reduce((acc, i) => acc + Number(i.amount || 0), 0);
   const totalExpenses = monthData.expenses.reduce((acc, e) => acc + Number(e.amount || 0), 0);
-  
   const totalPaidBills = monthData.bills
     .filter((b) => b.paid && b.direction !== 'credit')
     .reduce((acc, b) => acc + Number(b.amount || 0), 0);
-
   const totalBillsDue = monthData.bills.reduce((acc, b) => acc + Number(b.amount || 0), 0);
+
   const netSurplus = totalIncome - totalExpenses - totalPaidBills;
 
   document.getElementById('income-total').textContent = formatPHP(totalIncome);
@@ -707,7 +662,7 @@ function renderIncomes(monthData) {
   list.innerHTML = '';
 
   if (monthData.incomes.length === 0) {
-    list.innerHTML = '<p class="text-sm text-slate-400 font-medium py-3">No income streams credited this month.</p>';
+    list.innerHTML = '<p class="text-xs text-slate-400 italic">No income streams credited this month.</p>';
     return;
   }
 
@@ -717,15 +672,15 @@ function renderIncomes(monthData) {
     item.className = 'flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/70 p-3.5 hover:bg-slate-50 transition';
     item.innerHTML = `
       <div>
-        <h4 class="font-bold text-slate-900">${inc.label}</h4>
-        <p class="text-xs font-semibold text-emerald-700 flex items-center gap-1 mt-0.5">
-          <i data-lucide="arrow-down-left" class="h-3.5 w-3.5"></i> Credited to ${acc ? acc.name : 'Unlinked Account'}
-        </p>
+        <h4 class="text-xs font-bold text-slate-800">${inc.label}</h4>
+        <p class="text-[10px] text-slate-400">Credited to ${acc ? acc.name : 'Unlinked Account'}</p>
       </div>
       <div class="flex items-center gap-3">
-        <span class="font-black text-emerald-600 text-base">${formatPHP(inc.amount)}</span>
-        <button data-action="edit-income" data-id="${inc.id}" class="text-slate-400 hover:text-slate-700 transition"><i data-lucide="edit-3" class="h-4 w-4"></i></button>
-        <button data-action="delete-income" data-id="${inc.id}" class="text-slate-400 hover:text-rose-600 transition"><i data-lucide="trash-2" class="h-4 w-4"></i></button>
+        <span class="text-xs font-bold text-emerald-600">${formatPHP(inc.amount)}</span>
+        <div class="flex gap-1">
+          <button data-action="edit-income" class="p-1 text-slate-400 hover:text-slate-600"><i data-lucide="edit-2" class="w-3.5 h-3.5"></i></button>
+          <button data-action="delete-income" class="p-1 text-slate-400 hover:text-rose-600"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+        </div>
       </div>
     `;
 
@@ -766,56 +721,41 @@ function renderBills(monthData) {
   list.innerHTML = '';
 
   if (monthData.bills.length === 0) {
-    list.innerHTML = '<p class="text-sm text-slate-400 font-medium py-3">No recurring dues or bills recorded.</p>';
+    list.innerHTML = '<p class="text-xs text-slate-400 italic">No recurring dues or bills recorded.</p>';
     return;
   }
 
   monthData.bills.forEach((bill) => {
     const acc = appState.accounts.find((a) => a.id === bill.accountId);
     const isCreditCardPayment = bill.direction === 'credit' || (acc && (acc.type === 'credit' || acc.type === 'loan'));
-    
     const item = document.createElement('div');
     item.className = `flex items-center justify-between rounded-xl border p-3.5 transition ${
       bill.paid ? 'border-slate-200 bg-white opacity-85' : 'border-amber-200 bg-amber-50/50'
     }`;
 
-    const arrearsBadge = bill.arrearsFrom
-      ? `<span class="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-amber-800 border border-amber-300">
-           <i data-lucide="alert-circle" class="h-3 w-3"></i> Past Due (${bill.arrearsFrom})
-         </span>`
-      : '';
-
-    const typeBadge = isCreditCardPayment
-      ? `<span class="rounded-md bg-blue-100 px-2 py-0.5 text-[9px] font-bold uppercase text-blue-700 border border-blue-200">Payment to Card</span>`
-      : `<span class="rounded-md bg-slate-100 px-2 py-0.5 text-[9px] font-bold uppercase text-slate-600">Debit Out</span>`;
+    const arrearsBadge = bill.arrearsFrom ? `<span class="bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded text-[9px] font-bold">Past Due (${bill.arrearsFrom})</span>` : '';
+    const typeBadge = isCreditCardPayment ? 'Payment to Card' : 'Debit Out';
 
     item.innerHTML = `
-      <div class="flex items-center gap-3">
-        <button data-action="toggle-bill" data-id="${bill.id}" class="flex h-7 w-7 items-center justify-center rounded-lg border ${
-      bill.paid ? 'border-emerald-500 bg-emerald-50 text-emerald-600' : 'border-slate-300 bg-white text-transparent hover:border-emerald-400'
-    } transition">
-          <i data-lucide="check" class="h-4 w-4"></i>
-        </button>
-        <div>
-          <div class="flex items-center gap-2">
-            <h4 class="font-bold text-slate-900 ${bill.paid ? 'line-through text-slate-500' : ''}">${bill.label}</h4>
-            ${typeBadge}
-            ${arrearsBadge}
-          </div>
-          <p class="text-xs text-slate-500 mt-0.5">
-            Due day ${bill.due} • ${isCreditCardPayment ? 'Crediting' : 'via'} <span class="font-bold text-slate-700">${acc ? acc.name : 'Default Card'}</span>
-          </p>
+      <div>
+        <div class="flex items-center gap-2">
+          <h4 class="text-xs font-bold text-slate-800">${bill.label}</h4>
+          <span class="text-[9px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">${typeBadge}</span>
+          ${arrearsBadge}
         </div>
+        <p class="text-[10px] text-slate-400">Due day ${bill.due} • ${isCreditCardPayment ? 'Crediting' : 'via'} ${acc ? acc.name : 'Default Card'}</p>
       </div>
       <div class="flex items-center gap-3">
         <div class="text-right">
-          <span class="block font-black text-slate-900 text-base ${bill.paid ? 'text-slate-500' : ''}">${formatPHP(bill.amount)}</span>
-          <span class="text-[10px] font-black uppercase tracking-widest ${bill.paid ? 'text-emerald-600' : 'text-amber-600'}">
+          <p class="text-xs font-bold text-slate-800">${formatPHP(bill.amount)}</p>
+          <button data-action="toggle-bill" class="text-[10px] font-bold ${bill.paid ? 'text-emerald-600 hover:text-emerald-700' : 'text-amber-600 hover:text-amber-700'}">
             ${bill.paid ? (isCreditCardPayment ? 'PAID & APPLIED' : 'PAID & DEBITED') : 'UNPAID'}
-          </span>
+          </button>
         </div>
-        <button data-action="edit-bill" data-id="${bill.id}" class="text-slate-400 hover:text-slate-700 transition"><i data-lucide="edit-3" class="h-4 w-4"></i></button>
-        <button data-action="delete-bill" data-id="${bill.id}" class="text-slate-400 hover:text-rose-600 transition"><i data-lucide="trash-2" class="h-4 w-4"></i></button>
+        <div class="flex gap-1">
+          <button data-action="edit-bill" class="p-1 text-slate-400 hover:text-slate-600"><i data-lucide="edit-2" class="w-3.5 h-3.5"></i></button>
+          <button data-action="delete-bill" class="p-1 text-slate-400 hover:text-rose-600"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+        </div>
       </div>
     `;
 
@@ -873,18 +813,14 @@ function renderExpenses(monthData) {
     const row = document.createElement('tr');
     row.className = 'hover:bg-slate-50 transition border-b border-slate-100 last:border-b-0';
     row.innerHTML = `
-      <td class="px-4 py-3 font-semibold text-slate-800 text-xs">
-        <span class="inline-block rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-700">${exp.category}</span>
-      </td>
-      <td class="px-4 py-3 font-bold text-slate-900 text-sm">${exp.label}</td>
-      <td class="px-4 py-3 text-xs font-semibold text-slate-600">
-        <span class="flex items-center gap-1.5"><i data-lucide="credit-card" class="h-3.5 w-3.5 text-slate-400"></i> ${acc ? acc.name : 'Direct Cash'}</span>
-      </td>
-      <td class="px-4 py-3 font-black text-right text-slate-900 text-sm">${formatPHP(exp.amount)}</td>
-      <td class="px-4 py-3 text-center">
-        <div class="flex items-center justify-center gap-2">
-          <button data-action="edit-expense" data-id="${exp.id}" class="text-slate-400 hover:text-slate-700 transition"><i data-lucide="edit-3" class="h-4 w-4"></i></button>
-          <button data-action="delete-expense" data-id="${exp.id}" class="text-slate-400 hover:text-rose-600 transition"><i data-lucide="trash-2" class="h-4 w-4"></i></button>
+      <td class="py-3 px-4 text-xs font-semibold text-slate-700">${exp.category}</td>
+      <td class="py-3 px-4 text-xs font-bold text-slate-800">${exp.label}</td>
+      <td class="py-3 px-4 text-xs text-slate-500">${acc ? acc.name : 'Direct Cash'}</td>
+      <td class="py-3 px-4 text-xs font-bold text-rose-600 text-right">${formatPHP(exp.amount)}</td>
+      <td class="py-3 px-4 text-right">
+        <div class="flex justify-end gap-1">
+          <button data-action="edit-expense" class="p-1 text-slate-400 hover:text-slate-600"><i data-lucide="edit-2" class="w-3.5 h-3.5"></i></button>
+          <button data-action="delete-expense" class="p-1 text-slate-400 hover:text-rose-600"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
         </div>
       </td>
     `;
@@ -926,11 +862,7 @@ function renderSavings(monthData) {
   panel.innerHTML = '';
 
   if (monthData.savings.length === 0) {
-    panel.innerHTML = `
-      <div class="rounded-xl border border-dashed border-slate-200 p-8 text-center">
-        <p class="text-sm font-semibold text-slate-400">No savings targets allocated for this month.</p>
-      </div>
-    `;
+    panel.innerHTML = '<p class="text-xs text-slate-400 italic">No savings targets allocated for this month.</p>';
     return;
   }
 
@@ -940,23 +872,21 @@ function renderSavings(monthData) {
     const card = document.createElement('div');
     card.className = 'rounded-xl border border-slate-100 bg-slate-50/70 p-4';
     card.innerHTML = `
-      <div class="flex items-center justify-between mb-2">
+      <div class="flex justify-between items-start mb-2">
         <div>
-          <h4 class="font-bold text-slate-900">${s.label}</h4>
-          <p class="text-xs text-slate-500">Fund: ${acc ? acc.name : 'Liquid Vault'}</p>
+          <h4 class="text-xs font-bold text-slate-800">${s.label}</h4>
+          <p class="text-[10px] text-slate-400">Fund: ${acc ? acc.name : 'Liquid Vault'}</p>
         </div>
-        <div class="text-right">
-          <span class="font-black text-indigo-600 text-sm">${formatPHP(s.amount)}</span>
-          <span class="text-xs text-slate-400">/ ${formatPHP(s.goal)}</span>
-        </div>
+        <button data-action="delete-savings" class="text-slate-400 hover:text-rose-600"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
       </div>
-      <div class="w-full h-2 rounded-full bg-slate-200 overflow-hidden">
-        <div class="h-full bg-indigo-600 transition-all duration-300" style="width: ${progress}%"></div>
+      <div class="flex justify-between text-xs font-bold text-slate-700 mb-1">
+        <span>${formatPHP(s.amount)}</span>
+        <span>/ ${formatPHP(s.goal)}</span>
       </div>
-      <div class="mt-2 flex items-center justify-between text-xs text-slate-500 font-bold">
-        <span>${progress}% reached</span>
-        <button data-action="delete-savings" data-id="${s.id}" class="text-slate-400 hover:text-rose-600"><i data-lucide="trash-2" class="h-3.5 w-3.5"></i></button>
+      <div class="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+        <div class="bg-emerald-500 h-full transition-all" style="width: ${progress}%"></div>
       </div>
+      <p class="text-[10px] text-slate-400 mt-1 text-right">${progress}% reached</p>
     `;
 
     card.querySelector('[data-action="delete-savings"]').addEventListener('click', async () => {
@@ -1010,109 +940,58 @@ function renderAccounts() {
       totalAvailableCredit += available;
 
       card.innerHTML = `
-        <div>
-          <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br ${cardColor} p-5 text-white shadow-lg min-h-[170px] flex flex-col justify-between">
-            <div class="flex items-center justify-between">
-              <span class="text-[11px] font-extrabold uppercase tracking-widest opacity-80 flex items-center gap-1.5">
-                <i data-lucide="credit-card" class="h-3.5 w-3.5"></i> ${acc.type.toUpperCase()}
-              </span>
-              <span class="rounded-full bg-amber-400/25 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-amber-200 border border-amber-300/40">
-                Due ${acc.dueDay || '15th'}
-              </span>
-            </div>
-            
-            <div class="my-2">
-              <h4 class="text-xl font-black tracking-tight text-white leading-tight break-words">${acc.name}</h4>
-              <p class="text-xs font-semibold text-slate-200 opacity-80">${acc.tag || 'Revolving Line'}</p>
-            </div>
-
-            <div>
-              <div class="flex justify-between text-[11px] font-bold opacity-85 mb-1">
-                <span>Used: ${formatPHP(used)}</span>
-                <span>Limit: ${formatPHP(limit)}</span>
-              </div>
-              <div class="w-full h-1.5 rounded-full bg-white/20 overflow-hidden">
-                <div class="h-full bg-amber-400 rounded-full" style="width: ${utilPercent}%"></div>
-              </div>
-            </div>
-
-            <div class="flex items-center justify-between pt-2 border-t border-white/15 text-xs font-semibold opacity-85">
-              <span>•••• ${acc.lastFour || '0000'}</span>
-              <span>${utilPercent}% Utilized</span>
+        <div class="bg-gradient-to-r ${cardColor} text-white p-4 rounded-xl mb-3">
+          <div class="flex justify-between items-start mb-2">
+            <span class="text-[10px] uppercase font-bold tracking-wider opacity-80">${acc.type.toUpperCase()} • Due ${acc.dueDay || '15th'}</span>
+            <div class="flex gap-1">
+              <button data-action="edit-full-account" class="opacity-80 hover:opacity-100 p-0.5"><i data-lucide="edit-2" class="w-3.5 h-3.5"></i></button>
+              <button data-action="delete-account" class="opacity-80 hover:opacity-100 p-0.5"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
             </div>
           </div>
-
-          <div class="mt-4 px-1">
-            <div class="flex items-baseline justify-between">
-              <div>
-                <p class="text-2xl font-black text-rose-600 tracking-tight">${formatPHP(used)}</p>
-                <p class="text-xs font-semibold text-slate-500 mt-0.5">Outstanding Balance to Pay</p>
-              </div>
-              
-              <div class="flex items-center gap-1.5">
-                <button data-action="edit-full-account" data-id="${acc.id}" title="Edit Card Details" class="p-2 rounded-xl text-slate-500 hover:text-amber-700 hover:bg-amber-50 transition border border-slate-200/60">
-                  <i data-lucide="sliders-horizontal" class="h-4 w-4"></i>
-                </button>
-                <button data-action="delete-account" data-id="${acc.id}" title="Delete Card" class="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition border border-slate-200/60">
-                  <i data-lucide="trash-2" class="h-4 w-4"></i>
-                </button>
-              </div>
-            </div>
-
-            <div class="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-[11px] font-medium text-slate-600 flex items-center justify-between">
-              <span>Available: <strong class="text-emerald-600">${formatPHP(available)}</strong></span>
-              <span class="text-[10px] text-amber-700 font-bold uppercase tracking-wider">Due ${acc.dueDay || '15th'}</span>
-            </div>
+          <h4 class="text-base font-extrabold mb-1">${acc.name}</h4>
+          <p class="text-[10px] opacity-80 mb-3">${acc.tag || 'Revolving Line'}</p>
+          <div class="flex justify-between text-[10px] opacity-90 border-t border-white/10 pt-2">
+            <span>Used: ${formatPHP(used)}</span>
+            <span>Limit: ${formatPHP(limit)}</span>
           </div>
+        </div>
+        <div class="space-y-2">
+          <div class="flex justify-between text-xs text-slate-500">
+            <span>•••• ${acc.lastFour || '0000'}</span>
+            <span class="font-bold text-amber-600">${utilPercent}% Utilized</span>
+          </div>
+          <div>
+            <p class="text-xs text-slate-400">Outstanding Balance to Pay</p>
+            <p class="text-lg font-extrabold text-rose-600">${formatPHP(used)}</p>
+          </div>
+          <p class="text-[10px] text-slate-500 pt-1 border-t border-slate-100">
+            Available: <strong class="text-slate-700">${formatPHP(available)}</strong> • Due ${acc.dueDay || '15th'}
+          </p>
         </div>
       `;
     } else {
       totalLiquid += dynamicBalance;
 
       card.innerHTML = `
-        <div>
-          <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br ${cardColor} p-5 text-white shadow-lg min-h-[170px] flex flex-col justify-between">
-            <div class="flex items-center justify-between">
-              <span class="text-[11px] font-extrabold uppercase tracking-widest opacity-80">${acc.type.toUpperCase()}</span>
-              <span class="rounded-full bg-white/20 backdrop-blur-md px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white border border-white/25">
-                ${acc.tag || 'Active'}
-              </span>
-            </div>
-            
-            <div class="my-3">
-              <h4 class="text-xl font-black tracking-tight text-white leading-tight break-words">${acc.name}</h4>
-            </div>
-
-            <div class="flex items-center justify-between pt-2 border-t border-white/15 text-xs font-semibold opacity-85">
-              <span>•••• ${acc.lastFour || '9031'}</span>
-              <i data-lucide="shield-check" class="h-4 w-4"></i>
+        <div class="bg-gradient-to-r ${cardColor} text-white p-4 rounded-xl mb-3">
+          <div class="flex justify-between items-start mb-2">
+            <span class="text-[10px] uppercase font-bold tracking-wider opacity-80">${acc.type.toUpperCase()} • ${acc.tag || 'Active'}</span>
+            <div class="flex gap-1">
+              <button data-action="edit-full-account" class="opacity-80 hover:opacity-100 p-0.5"><i data-lucide="edit-2" class="w-3.5 h-3.5"></i></button>
+              <button data-action="delete-account" class="opacity-80 hover:opacity-100 p-0.5"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
             </div>
           </div>
-
-          <div class="mt-4 px-1">
-            <div class="flex items-baseline justify-between">
-              <div>
-                <p class="text-2xl font-black text-slate-900 tracking-tight">${formatPHP(dynamicBalance)}</p>
-                <p class="text-xs font-semibold text-slate-500 mt-0.5">Liquid balance (Calculated)</p>
-              </div>
-
-              <div class="flex items-center gap-1.5">
-                <button data-action="edit-full-account" data-id="${acc.id}" title="Edit Account Details" class="p-2 rounded-xl text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 transition border border-slate-200/60">
-                  <i data-lucide="sliders-horizontal" class="h-4 w-4"></i>
-                </button>
-                <button data-action="adjust-baseline" data-id="${acc.id}" title="Adjust Baseline Amount" class="p-2 rounded-xl text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 transition border border-slate-200/60">
-                  <i data-lucide="edit-3" class="h-4 w-4"></i>
-                </button>
-                <button data-action="delete-account" data-id="${acc.id}" title="Delete account" class="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition border border-slate-200/60">
-                  <i data-lucide="trash-2" class="h-4 w-4"></i>
-                </button>
-              </div>
-            </div>
-
-            <div class="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-[11px] font-medium text-slate-500 flex items-center justify-between">
-              <span>Starting baseline: <strong class="text-slate-700">${formatPHP(acc.baselineBalance)}</strong></span>
-              <span class="text-[10px] text-emerald-700 font-bold uppercase tracking-wider">Live Synced</span>
-            </div>
+          <h4 class="text-base font-extrabold mb-1">${acc.name}</h4>
+          <p class="text-[10px] opacity-80">•••• ${acc.lastFour || '9031'}</p>
+        </div>
+        <div class="space-y-2">
+          <div>
+            <p class="text-xs text-slate-400">Liquid balance (Calculated)</p>
+            <p class="text-lg font-extrabold text-emerald-600">${formatPHP(dynamicBalance)}</p>
+          </div>
+          <div class="flex justify-between items-center text-[10px] text-slate-500 pt-1 border-t border-slate-100">
+            <span>Starting baseline: <strong class="text-slate-700">${formatPHP(acc.baselineBalance)}</strong></span>
+            <button data-action="adjust-baseline" class="text-emerald-600 font-bold hover:underline">Live Synced</button>
           </div>
         </div>
       `;
@@ -1188,7 +1067,10 @@ function renderMonthlyChart(monthData) {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { position: 'bottom', labels: { boxWidth: 12, font: { family: 'Inter', weight: 'bold' } } }
+        legend: {
+          position: 'bottom',
+          labels: { boxWidth: 12, font: { family: 'Inter', weight: 'bold' } }
+        }
       },
       cutout: '72%'
     }
@@ -1225,11 +1107,11 @@ function renderAnnualLedger() {
     const tr = document.createElement('tr');
     tr.className = 'hover:bg-slate-50 transition border-b border-slate-100 last:border-b-0';
     tr.innerHTML = `
-      <td class="px-4 py-3 font-bold text-slate-800 text-xs">${name}</td>
-      <td class="px-4 py-3 font-bold text-right text-emerald-600 text-xs">${formatPHP(inc)}</td>
-      <td class="px-4 py-3 font-bold text-right text-rose-600 text-xs">${formatPHP(exp)}</td>
-      <td class="px-4 py-3 font-bold text-right text-amber-600 text-xs">${formatPHP(bills)}</td>
-      <td class="px-4 py-3 font-black text-right text-xs ${net >= 0 ? 'text-indigo-600' : 'text-rose-600'}">${formatPHP(net)}</td>
+      <td class="py-3 px-4 text-xs font-bold text-slate-800">${name}</td>
+      <td class="py-3 px-4 text-xs text-emerald-600 font-semibold text-right">${formatPHP(inc)}</td>
+      <td class="py-3 px-4 text-xs text-rose-600 font-semibold text-right">${formatPHP(exp)}</td>
+      <td class="py-3 px-4 text-xs text-amber-600 font-semibold text-right">${formatPHP(bills)}</td>
+      <td class="py-3 px-4 text-xs font-extrabold text-right ${net >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${formatPHP(net)}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -1256,7 +1138,10 @@ function renderAnnualLedger() {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { position: 'bottom', labels: { boxWidth: 12, font: { family: 'Inter', weight: 'bold' } } }
+        legend: {
+          position: 'bottom',
+          labels: { boxWidth: 12, font: { family: 'Inter', weight: 'bold' } }
+        }
       }
     }
   });
@@ -1322,16 +1207,11 @@ function setupAuthViews() {
     const email = document.getElementById('signin-identifier').value.trim();
     const password = document.getElementById('signin-password').value;
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
-
+    const { data, error } = await db.auth.signInWithPassword({ email, password });
     if (error) {
       showAuthAlert(error.message);
       return;
     }
-
     loginUser(data.user);
   });
 
@@ -1339,7 +1219,6 @@ function setupAuthViews() {
   signupForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     clearAuthAlert();
-
     const name = document.getElementById('signup-name').value.trim();
     const email = document.getElementById('signup-email').value.trim();
     const password = document.getElementById('signup-password').value;
@@ -1347,9 +1226,7 @@ function setupAuthViews() {
     const { data, error } = await db.auth.signUp({
       email,
       password,
-      options: {
-        data: { display_name: name }
-      }
+      options: { data: { display_name: name } }
     });
 
     if (error) {
@@ -1369,16 +1246,12 @@ function setupAuthViews() {
   forgotForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     clearAuthAlert();
-
     const email = document.getElementById('forgot-identifier').value.trim();
-
     const { error } = await db.auth.resetPasswordForEmail(email);
-
     if (error) {
       showAuthAlert(error.message);
       return;
     }
-
     showAuthAlert('Password reset email sent successfully!', 'success');
   });
 
@@ -1393,7 +1266,6 @@ function setupAuthViews() {
 async function loginUser(user) {
   currentUser = user;
   appState = await loadUserState(currentUser.id);
-
   document.getElementById('auth-gate').classList.add('hidden');
   updateNavUserProfile(user);
   setupHeaderSelectors();
@@ -1403,9 +1275,8 @@ async function loginUser(user) {
 function updateNavUserProfile(user) {
   const nameEl = document.getElementById('active-user-name');
   const avatarEl = document.getElementById('active-avatar');
-  
   const displayName = user.user_metadata?.display_name || user.email.split('@')[0];
-  
+
   if (nameEl) nameEl.textContent = displayName;
   if (avatarEl) {
     const initials = displayName.substring(0, 2).toUpperCase();
@@ -1416,7 +1287,7 @@ function updateNavUserProfile(user) {
 async function checkAuthSession() {
   const authGate = document.getElementById('auth-gate');
   const { data: { session } } = await db.auth.getSession();
-  
+
   if (session && session.user) {
     currentUser = session.user;
     authGate.classList.add('hidden');
