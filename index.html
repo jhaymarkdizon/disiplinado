@@ -157,10 +157,9 @@
               <select id="month-select" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 outline-none shadow-sm cursor-pointer"></select>
             </div>
 
-
-<button id="add-entry-btn" class="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow hover:bg-emerald-500 transition">
-  <i data-lucide="plus-circle" class="h-4 w-4"></i> Add Entry
-</button>
+            <button id="add-entry-btn" class="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow hover:bg-emerald-500 transition">
+              <i data-lucide="plus-circle" class="h-4 w-4"></i> Add Entry
+            </button>
 
             <div class="flex items-center gap-2 pl-2 border-l border-slate-200">
               <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900 text-xs font-black text-white shadow-sm" id="active-avatar">--</div>
@@ -559,7 +558,7 @@
             </div>
             <div>
               <label for="account-due-day" class="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-600">Payment Due Date / Cut-off</label>
-              <input id="account-due-day" type="text" class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200 transition" placeholder="e.g. 15th of the month" />
+              <input id="account-due-day" type="text" class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200 transition" placeholder="e.g. 15th" />
             </div>
           </div>
 
@@ -575,18 +574,20 @@
         </form>
       </div>
     </div>
-<!-- APP FOOTER (Very Bottom of Main Container) -->
-      <footer class="mt-16 pb-12 pt-8 border-t border-slate-200 text-center flex flex-col items-center justify-center gap-3">
-        <button 
-          id="pwa-install-btn" 
-          type="button" 
-          class="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-6 py-3 text-xs font-bold text-white shadow-md hover:bg-slate-800 active:scale-95 transition cursor-pointer">
-          <i data-lucide="download" class="h-4 w-4 text-emerald-400"></i> Install Disciplined to Device
-        </button>
-        <p class="text-[11px] font-semibold text-slate-400">Disciplined Budget Tracker • Cloud Synced & Secure</p>
-      </footer>
+
+    <!-- APP FOOTER (Very Bottom of Main Container) -->
+    <footer class="mt-16 pb-12 pt-8 border-t border-slate-200 text-center flex flex-col items-center justify-center gap-3">
+      <button 
+        id="pwa-install-btn" 
+        type="button" 
+        class="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-6 py-3 text-xs font-bold text-white shadow-md hover:bg-slate-800 active:scale-95 transition cursor-pointer">
+        <i data-lucide="download" class="h-4 w-4 text-emerald-400"></i> Install Disciplined to Device
+      </button>
+      <p class="text-[11px] font-semibold text-slate-400">Disciplined Budget Tracker • Cloud Synced & Secure</p>
+    </footer>
 
     </div> <!-- Closes #app-container -->
+
     <div id="dialog-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
       <div class="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
         <div class="flex items-center justify-between border-b border-slate-100 px-6 py-4">
