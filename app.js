@@ -1,12 +1,13 @@
 /**
  * Disciplined Budget Tracker - Application Logic
- * * Features:
- * 1. Credit Card Bill Settlement & Direction Control (Debit vs Credit).
- * 2. Multi-User Vault (Up to 5 profiles).
- * 3. Dynamic Account Balance Formula:
- * - Bank: Baseline + Income - Paid Bills - Expenses.
- * - Credit Card: Baseline Debt + Charges - Payments Made.
- * 4. Monthly Overview with Right-Hand Live Balances.
+ * 
+ * Features:
+ * 1. Clean Slate State (No pre-loaded demo accounts or balances).
+ * 2. Multi-Profile Access (Sign In, Profile Creation, Direct Password Reset, Sign Out).
+ * 3. Dynamic Year Generator starting at 2026 and scaling forward continuously.
+ * 4. Monthly Overview with Right-Side Live Bank Balances & Credit Card Remaining to Pay.
+ * 5. Credit Card Bill Direction (Debit vs Credit) auto-reducing credit card balance when paid.
+ * 6. Automatic Brand Color Recognition for PH Banks & Credit Cards based on name.
  */
 
 const USERS_STORAGE_KEY = 'disciplined_users_db_v1';
@@ -57,61 +58,13 @@ function getAutoBrandColor(accountName, type = 'bank') {
   return match ? match.color : (type === 'credit' ? 'from-slate-900 to-zinc-950' : 'from-slate-800 to-slate-950');
 }
 
-const DEFAULT_USER = {
-  id: 'usr-default-1',
-  name: 'Jay Mark',
-  username: 'jaymark',
-  email: 'jaymark@disciplined.local',
-  password: 'password123'
-};
-
+// Clean Slate Template: Completely fresh start
 const DEFAULT_STATE_TEMPLATE = {
   selectedYear: 2026,
-  selectedMonth: 7, // August
+  selectedMonth: 0, // January
   activeTab: 'monthly',
-  accounts: [
-    {
-      id: 'acc-1',
-      name: 'GoTyme Savings',
-      type: 'bank',
-      tag: 'Payroll',
-      color: 'from-teal-700 to-cyan-950',
-      lastFour: '4120',
-      baselineBalance: 1573.69
-    },
-    {
-      id: 'acc-2',
-      name: 'GCash Wallet',
-      type: 'wallet',
-      tag: 'Digital Wallet',
-      color: 'from-blue-600 to-indigo-700',
-      lastFour: '9031',
-      baselineBalance: 218.38
-    },
-    {
-      id: 'acc-3',
-      name: 'Maya Black Card',
-      type: 'credit',
-      tag: 'Credit Card',
-      color: 'from-slate-900 to-emerald-900',
-      lastFour: '6102',
-      creditLimit: 50000,
-      creditUsed: 15000,
-      dueDay: '20th'
-    }
-  ],
-  months: {
-    '2026-7': {
-      incomes: [
-        { id: 'inc-1', label: 'Salary', amount: 0, accountId: 'acc-1' }
-      ],
-      expenses: [],
-      bills: [
-        { id: 'bill-1', label: 'Maya Black Payment', amount: 0.0, due: '20th', accountId: 'acc-3', paid: true, direction: 'credit', arrearsFrom: null }
-      ],
-      savings: []
-    }
-  }
+  accounts: [],
+  months: {}
 };
 
 let usersDb = loadUsersDatabase();
@@ -121,14 +74,10 @@ let appState = null;
 function loadUsersDatabase() {
   try {
     const raw = localStorage.getItem(USERS_STORAGE_KEY);
-    if (!raw) {
-      const initDb = [DEFAULT_USER];
-      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(initDb));
-      return initDb;
-    }
+    if (!raw) return [];
     return JSON.parse(raw);
   } catch (e) {
-    return [DEFAULT_USER];
+    return [];
   }
 }
 
@@ -155,6 +104,7 @@ function saveState() {
   localStorage.setItem(getUserStorageKey(currentUserId), JSON.stringify(appState));
 }
 
+// Auto-creates month container and detects previous month's unpaid bills for rollover
 function ensureMonthData(year, month) {
   if (!appState) return { incomes: [], expenses: [], bills: [], savings: [] };
   const key = `${year}-${month}`;
@@ -204,9 +154,9 @@ function ensureMonthData(year, month) {
 }
 
 /**
- * Recalculation Engine:
- * - Bank Accounts: Baseline + Income - Expenses - Paid Bills (where direction is 'debit')
- * - Credit Cards: Baseline Debt + Expenses - Payments (where bill is 'credit' and PAID)
+ * Dynamic Balance Calculation Formula:
+ * - Bank Accounts: Baseline + Income - Expenses - Paid Normal Debits
+ * - Credit Cards: Baseline Debt + Expenses - Paid Credit Card Payments
  */
 function calculateAccountBalance(accountId) {
   if (!appState) return 0;
@@ -218,16 +168,12 @@ function calculateAccountBalance(accountId) {
   if (account.type === 'credit' || account.type === 'loan') {
     let usedDebt = Number(account.creditUsed || 0);
 
-    // Expenses charged to this credit card increase the debt
     currentMonthData.expenses.forEach((exp) => {
       if (exp.accountId === accountId) {
         usedDebt += Number(exp.amount || 0);
       }
     });
 
-    // Bills:
-    // If direction is 'credit' and bill is paid -> It is a PAYMENT towards the card (reduces debt)
-    // If direction is 'debit' and bill is paid -> It is a fee/charge on the card (increases debt)
     currentMonthData.bills.forEach((bill) => {
       if (bill.accountId === accountId && bill.paid) {
         if (bill.direction === 'credit') {
@@ -238,7 +184,6 @@ function calculateAccountBalance(accountId) {
       }
     });
 
-    // Income deposits to card directly reduce debt
     currentMonthData.incomes.forEach((inc) => {
       if (inc.accountId === accountId) {
         usedDebt -= Number(inc.amount || 0);
@@ -248,7 +193,6 @@ function calculateAccountBalance(accountId) {
     return Math.max(0, usedDebt);
   }
 
-  // Standard Bank / E-Wallet Calculation
   let balance = Number(account.baselineBalance || 0);
 
   currentMonthData.incomes.forEach((inc) => {
@@ -259,7 +203,6 @@ function calculateAccountBalance(accountId) {
 
   currentMonthData.bills.forEach((bill) => {
     if (bill.accountId === accountId && bill.paid) {
-      // Normal debits decrease liquid bank balance
       if (bill.direction !== 'credit') {
         balance -= Number(bill.amount || 0);
       }
@@ -334,7 +277,7 @@ function closeCenteredDialog(result = null) {
   }
 }
 
-// Attach Event Handlers
+// Lifecycle Initialization
 document.addEventListener('DOMContentLoaded', () => {
   setupAuthViews();
   setupHeaderSelectors();
@@ -345,15 +288,31 @@ document.addEventListener('DOMContentLoaded', () => {
   checkAuthSession();
 });
 
+// Dynamic Year Generator: Starts at 2026 and provides a continuous runway forward
 function setupHeaderSelectors() {
   const yearSelect = document.getElementById('year-select');
   const monthSelect = document.getElementById('month-select');
 
-  yearSelect.innerHTML = [2025, 2026, 2027]
-    .map((y) => `<option value="${y}" ${appState && y === appState.selectedYear ? 'selected' : ''}>Year ${y}</option>`)
+  const START_YEAR = 2026;
+  const currentActualYear = new Date().getFullYear();
+  const endYear = Math.max(currentActualYear + 30, (appState?.selectedYear || START_YEAR) + 10, START_YEAR + 50);
+
+  const availableYears = [];
+  for (let y = START_YEAR; y <= endYear; y++) {
+    availableYears.push(y);
+  }
+
+  if (!appState || !appState.selectedYear || appState.selectedYear < START_YEAR) {
+    if (appState) appState.selectedYear = START_YEAR;
+  }
+
+  const activeYear = appState ? appState.selectedYear : START_YEAR;
+  yearSelect.innerHTML = availableYears
+    .map((y) => `<option value="${y}" ${y === activeYear ? 'selected' : ''}>Year ${y}</option>`)
     .join('');
 
-  monthSelect.innerHTML = MONTH_NAMES.map((m, idx) => `<option value="${idx}" ${appState && idx === appState.selectedMonth ? 'selected' : ''}>${m}</option>`).join('');
+  const activeMonth = appState ? appState.selectedMonth : 0;
+  monthSelect.innerHTML = MONTH_NAMES.map((m, idx) => `<option value="${idx}" ${idx === activeMonth ? 'selected' : ''}>${m}</option>`).join('');
 
   yearSelect.addEventListener('change', (e) => {
     if (!appState) return;
@@ -731,7 +690,6 @@ function renderKPIs(monthData) {
   const totalIncome = monthData.incomes.reduce((acc, i) => acc + Number(i.amount || 0), 0);
   const totalExpenses = monthData.expenses.reduce((acc, e) => acc + Number(e.amount || 0), 0);
   
-  // Paid normal dues
   const totalPaidBills = monthData.bills
     .filter((b) => b.paid && b.direction !== 'credit')
     .reduce((acc, b) => acc + Number(b.amount || 0), 0);
@@ -1329,21 +1287,12 @@ function clearAuthAlert() {
   alertEl.textContent = '';
 }
 
-function updateProfileCountBadge() {
-  const countEl = document.getElementById('registered-profiles-count');
-  if (countEl) {
-    countEl.textContent = `${usersDb.length} / ${MAX_PROFILES} Profiles Registered`;
-  }
-}
-
 function setupAuthViews() {
   const authGate = document.getElementById('auth-gate');
   const signinForm = document.getElementById('signin-form');
   const signupForm = document.getElementById('signup-form');
   const forgotForm = document.getElementById('forgot-form');
   const authTitle = document.getElementById('auth-title');
-
-  updateProfileCountBadge();
 
   document.getElementById('go-signup-btn').addEventListener('click', () => {
     clearAuthAlert();
@@ -1432,13 +1381,13 @@ function setupAuthViews() {
 
     usersDb.push(newUser);
     saveUsersDatabase();
-    updateProfileCountBadge();
 
     localStorage.setItem(getUserStorageKey(newUser.id), JSON.stringify(DEFAULT_STATE_TEMPLATE));
 
     loginUser(newUser);
   });
 
+  // Direct In-App Password Reset
   forgotForm.addEventListener('submit', (e) => {
     e.preventDefault();
     clearAuthAlert();
@@ -1449,20 +1398,20 @@ function setupAuthViews() {
     const user = usersDb.find(u => u.username.toLowerCase() === identifier || u.email.toLowerCase() === identifier);
 
     if (!user) {
-      showAuthAlert('No user found matching that username or email.');
+      showAuthAlert('No registered profile matches that username or email.');
       return;
     }
 
     user.password = newPassword;
     saveUsersDatabase();
 
-    showAuthAlert('Password reset successful! You can now sign in.', 'success');
+    showAuthAlert('Password reset successful! You can now sign in with your new password.', 'success');
     setTimeout(() => {
       forgotForm.classList.add('hidden');
       signinForm.classList.remove('hidden');
       authTitle.textContent = 'Sign In to Disciplined';
       clearAuthAlert();
-    }, 1800);
+    }, 1500);
   });
 
   document.getElementById('signout-btn').addEventListener('click', () => {
@@ -1480,6 +1429,7 @@ function loginUser(user) {
 
   document.getElementById('auth-gate').classList.add('hidden');
   updateNavUserProfile(user);
+  setupHeaderSelectors();
   renderApp();
 }
 
@@ -1501,6 +1451,7 @@ function checkAuthSession() {
       authGate.classList.add('hidden');
       appState = loadUserState(currentUserId);
       updateNavUserProfile(user);
+      setupHeaderSelectors();
       renderApp();
       return;
     }
