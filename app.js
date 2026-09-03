@@ -1,8 +1,8 @@
 /**
- * Disciplined Budget Tracker - Application Logic
+ * Disciplined Budget Tracker - Supabase Integrated Application Logic
  */
 
-// Optional Supabase Configuration (Leave blank or insert your real credentials)
+// Supabase Configuration
 const SUPABASE_URL = 'https://vwyiygetdbnibwlfpcjy.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3eWl5Z2V0ZGJuaWJ3bGZwY2p5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzMzU2ODMsImV4cCI6MjEwMzkxMTY4M30.1jldKZKmMlkRwqQ6TLsrPaoHDgWEo9mBYdcuL7WLNAQ';
 
@@ -63,10 +63,9 @@ function getAutoBrandColor(accountName, type = 'bank') {
   return match ? match.color : (type === 'credit' ? 'from-slate-900 to-zinc-950' : 'from-slate-800 to-slate-950');
 }
 
-// Clean Slate Template: Completely fresh start
 const DEFAULT_STATE_TEMPLATE = {
   selectedYear: 2026,
-  selectedMonth: 0, // January
+  selectedMonth: 0,
   activeTab: 'monthly',
   accounts: [],
   months: {}
@@ -94,7 +93,25 @@ function getUserStorageKey(userId) {
   return `disciplined_vault_user_${userId}`;
 }
 
-function loadUserState(userId) {
+// Asynchronous State Loading from Supabase with Local Cache Fallback
+async function loadUserState(userId) {
+  try {
+    if (supabaseClient) {
+      const { data, error } = await supabaseClient
+        .from('user_vaults')
+        .select('state')
+        .eq('user_id', userId)
+        .single();
+
+      if (!error && data && data.state) {
+        localStorage.setItem(getUserStorageKey(userId), JSON.stringify(data.state));
+        return data.state;
+      }
+    }
+  } catch (e) {
+    console.warn('Network offline or Supabase unreachable, loading from local cache:', e);
+  }
+
   try {
     const raw = localStorage.getItem(getUserStorageKey(userId));
     if (!raw) return JSON.parse(JSON.stringify(DEFAULT_STATE_TEMPLATE));
@@ -104,9 +121,29 @@ function loadUserState(userId) {
   }
 }
 
-function saveState() {
-  if (!currentUserId) return;
+// Asynchronous State Saving to Supabase & Local Storage
+async function saveState() {
+  if (!currentUserId || !appState) return;
+
   localStorage.setItem(getUserStorageKey(currentUserId), JSON.stringify(appState));
+
+  if (supabaseClient) {
+    try {
+      const { error } = await supabaseClient
+        .from('user_vaults')
+        .upsert({
+          user_id: currentUserId,
+          state: appState,
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) {
+        console.error('Failed to sync state to Supabase:', error.message);
+      }
+    } catch (err) {
+      console.warn('Supabase save network error:', err);
+    }
+  }
 }
 
 function ensureMonthData(year, month) {
@@ -1326,14 +1363,12 @@ function setupAuthViews() {
     authTitle.textContent = 'Sign In to Disciplined';
   });
 
-  // Safe Sign-In handler with automatic fallback
   signinForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     clearAuthAlert();
     const identifier = document.getElementById('signin-identifier').value.trim();
     const password = document.getElementById('signin-password').value;
 
-    // 1. Supabase Check (if active)
     if (supabaseClient && supabaseClient.auth) {
       try {
         const { data, error } = await supabaseClient.auth.signInWithPassword({
@@ -1342,7 +1377,7 @@ function setupAuthViews() {
         });
 
         if (!error && data?.user) {
-          loginUser({
+          await loginUser({
             id: data.user.id,
             email: data.user.email,
             name: data.user.user_metadata?.full_name || data.user.email.split('@')[0]
@@ -1354,7 +1389,6 @@ function setupAuthViews() {
       }
     }
 
-    // 2. Local Database Fallback
     const user = usersDb.find(u => 
       (u.username?.toLowerCase() === identifier.toLowerCase() || u.email?.toLowerCase() === identifier.toLowerCase()) && 
       u.password === password
@@ -1365,7 +1399,7 @@ function setupAuthViews() {
       return;
     }
 
-    loginUser(user);
+    await loginUser(user);
   });
 
   signupForm.addEventListener('submit', async (e) => {
@@ -1392,31 +1426,35 @@ function setupAuthViews() {
       return;
     }
 
+    let userId = 'usr-' + Date.now();
+
+    if (supabaseClient && supabaseClient.auth) {
+      try {
+        const { data, error } = await supabaseClient.auth.signUp({
+          email: email,
+          password: password,
+          options: { data: { full_name: name } }
+        });
+        if (!error && data?.user) {
+          userId = data.user.id;
+        }
+      } catch (err) {
+        console.warn('Supabase signup fallback:', err);
+      }
+    }
+
     const newUser = {
-      id: 'usr-' + Date.now(),
+      id: userId,
       name,
       username,
       email,
       password
     };
 
-    if (supabaseClient && supabaseClient.auth) {
-      try {
-        await supabaseClient.auth.signUp({
-          email: email,
-          password: password,
-          options: { data: { full_name: name } }
-        });
-      } catch (err) {
-        console.warn('Supabase signup fallback:', err);
-      }
-    }
-
     usersDb.push(newUser);
     saveUsersDatabase();
 
-    localStorage.setItem(getUserStorageKey(newUser.id), JSON.stringify(DEFAULT_STATE_TEMPLATE));
-    loginUser(newUser);
+    await loginUser(newUser);
   });
 
   forgotForm.addEventListener('submit', (e) => {
@@ -1445,7 +1483,10 @@ function setupAuthViews() {
     }, 1500);
   });
 
-  document.getElementById('signout-btn').addEventListener('click', () => {
+  document.getElementById('signout-btn').addEventListener('click', async () => {
+    if (supabaseClient && supabaseClient.auth) {
+      await supabaseClient.auth.signOut();
+    }
     localStorage.removeItem(CURRENT_USER_KEY);
     currentUserId = null;
     appState = null;
@@ -1456,8 +1497,6 @@ function setupAuthViews() {
 async function loginUser(user) {
   currentUserId = user.id;
   localStorage.setItem(CURRENT_USER_KEY, currentUserId);
-  
-  // Await remote or cached state load
   appState = await loadUserState(currentUserId);
 
   document.getElementById('auth-gate').classList.add('hidden');
@@ -1466,20 +1505,32 @@ async function loginUser(user) {
   renderApp();
 }
 
+function updateNavUserProfile(user) {
+  const nameEl = document.getElementById('active-user-name');
+  const avatarEl = document.getElementById('active-avatar');
+  if (nameEl) nameEl.textContent = user.name;
+  if (avatarEl) {
+    const initials = user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+    avatarEl.textContent = initials || 'U';
+  }
+}
+
 async function checkAuthSession() {
   const authGate = document.getElementById('auth-gate');
   
-  // Check if Supabase has an active session
   if (supabaseClient && supabaseClient.auth) {
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    if (session?.user) {
-      currentUserId = session.user.id;
-      localStorage.setItem(CURRENT_USER_KEY, currentUserId);
+    try {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (session?.user) {
+        currentUserId = session.user.id;
+        localStorage.setItem(CURRENT_USER_KEY, currentUserId);
+      }
+    } catch (e) {
+      console.warn('Could not fetch Supabase session:', e);
     }
   }
 
   if (currentUserId) {
-    // Try finding user in local DB or construct session profile
     let user = usersDb.find(u => u.id === currentUserId);
     if (!user) {
       user = { id: currentUserId, name: 'User', email: 'account@user.com' };
@@ -1496,7 +1547,6 @@ async function checkAuthSession() {
   authGate.classList.remove('hidden');
 }
 
-// Register PWA Service Worker
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker
@@ -1506,7 +1556,6 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// --- PWA INSTALL HANDLER ---
 let deferredPrompt = null;
 
 window.addEventListener('beforeinstallprompt', (e) => {
