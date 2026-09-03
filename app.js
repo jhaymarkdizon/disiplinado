@@ -1367,31 +1367,41 @@ function setupAuthViews() {
     e.preventDefault();
     clearAuthAlert();
     const identifier = document.getElementById('signin-identifier').value.trim();
-   signinForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  clearAuthAlert();
-  const identifier = document.getElementById('signin-identifier').value.trim();
-  const password = document.getElementById('signin-password').value;
+    const password = document.getElementById('signin-password').value;
 
-  // Check if the email/username actually exists in your registered database first
-  const existingUser = usersDb.find(u => 
-    u.username?.toLowerCase() === identifier.toLowerCase() || 
-    u.email?.toLowerCase() === identifier.toLowerCase()
-  );
+    if (supabaseClient && supabaseClient.auth) {
+      try {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({
+          email: identifier,
+          password: password,
+        });
 
-  if (!existingUser) {
-    showAuthAlert('Access denied. This email address is not registered.');
-    return;
-  }
+        if (!error && data?.user) {
+          await loginUser({
+            id: data.user.id,
+            email: data.user.email,
+            name: data.user.user_metadata?.full_name || data.user.email.split('@')[0]
+          });
+          return;
+        }
+      } catch (err) {
+        console.warn('Supabase auth failed, trying local storage:', err);
+      }
+    }
 
-  // Proceed with standard password validation
-  if (existingUser.password !== password) {
-    showAuthAlert('Invalid password.');
-    return;
-  }
+    const user = usersDb.find(u => 
+      (u.username?.toLowerCase() === identifier.toLowerCase() || u.email?.toLowerCase() === identifier.toLowerCase()) && 
+      u.password === password
+    );
 
-  await loginUser(existingUser);
-});
+    if (!user) {
+      showAuthAlert('Invalid username/email or password.');
+      return;
+    }
+
+    await loginUser(user);
+  });
+
   signupForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     clearAuthAlert();
