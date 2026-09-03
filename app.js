@@ -1453,10 +1453,12 @@ function setupAuthViews() {
   });
 }
 
-function loginUser(user) {
+async function loginUser(user) {
   currentUserId = user.id;
   localStorage.setItem(CURRENT_USER_KEY, currentUserId);
-  appState = loadUserState(currentUserId);
+  
+  // Await remote or cached state load
+  appState = await loadUserState(currentUserId);
 
   document.getElementById('auth-gate').classList.add('hidden');
   updateNavUserProfile(user);
@@ -1464,29 +1466,33 @@ function loginUser(user) {
   renderApp();
 }
 
-function updateNavUserProfile(user) {
-  const nameEl = document.getElementById('active-user-name');
-  const avatarEl = document.getElementById('active-avatar');
-  if (nameEl) nameEl.textContent = user.name;
-  if (avatarEl) {
-    const initials = user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-    avatarEl.textContent = initials || 'U';
-  }
-}
-
-function checkAuthSession() {
+async function checkAuthSession() {
   const authGate = document.getElementById('auth-gate');
-  if (currentUserId) {
-    const user = usersDb.find(u => u.id === currentUserId);
-    if (user) {
-      authGate.classList.add('hidden');
-      appState = loadUserState(currentUserId);
-      updateNavUserProfile(user);
-      setupHeaderSelectors();
-      renderApp();
-      return;
+  
+  // Check if Supabase has an active session
+  if (supabaseClient && supabaseClient.auth) {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (session?.user) {
+      currentUserId = session.user.id;
+      localStorage.setItem(CURRENT_USER_KEY, currentUserId);
     }
   }
+
+  if (currentUserId) {
+    // Try finding user in local DB or construct session profile
+    let user = usersDb.find(u => u.id === currentUserId);
+    if (!user) {
+      user = { id: currentUserId, name: 'User', email: 'account@user.com' };
+    }
+    
+    authGate.classList.add('hidden');
+    appState = await loadUserState(currentUserId);
+    updateNavUserProfile(user);
+    setupHeaderSelectors();
+    renderApp();
+    return;
+  }
+  
   authGate.classList.remove('hidden');
 }
 
