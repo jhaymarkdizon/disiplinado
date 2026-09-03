@@ -1366,40 +1366,43 @@ function setupAuthViews() {
   signinForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     clearAuthAlert();
+    
     const identifier = document.getElementById('signin-identifier').value.trim();
     const password = document.getElementById('signin-password').value;
 
-    if (supabaseClient && supabaseClient.auth) {
-      try {
-        const { data, error } = await supabaseClient.auth.signInWithPassword({
-          email: identifier,
-          password: password,
-        });
-
-        if (!error && data?.user) {
-          await loginUser({
-            id: data.user.id,
-            email: data.user.email,
-            name: data.user.user_metadata?.full_name || data.user.email.split('@')[0]
-          });
-          return;
-        }
-      } catch (err) {
-        console.warn('Supabase auth failed, trying local storage:', err);
-      }
-    }
-
-    const user = usersDb.find(u => 
-      (u.username?.toLowerCase() === identifier.toLowerCase() || u.email?.toLowerCase() === identifier.toLowerCase()) && 
-      u.password === password
-    );
-
-    if (!user) {
-      showAuthAlert('Invalid username/email or password.');
+    if (!supabaseClient) {
+      showAuthAlert('Database connection error.');
       return;
     }
 
-    await loginUser(user);
+    // 1. Check if the email or user ID exists in your Supabase database first
+    const { data: registeredUser, error: dbError } = await supabaseClient
+      .from('profiles') // Change to your actual table name if different (e.g., 'users')
+      .select('*')
+      .or(`email.eq.${identifier},username.eq.${identifier}`)
+      .maybeSingle();
+
+    if (dbError || !registeredUser) {
+      showAuthAlert('Access denied. This email or user ID is not registered in the system.');
+      return;
+    }
+
+    // 2. Proceed with Supabase Auth or standard sign-in verification
+    try {
+      const { data, error } = await supabaseClient.auth.signInWithPassword({
+        email: registeredUser.email, // Use the verified email from the database
+        password: password,
+      });
+
+      if (error || !data.user) {
+        showAuthAlert('Invalid password.');
+        return;
+      }
+
+      await loginUser(data.user);
+    } catch (err) {
+      showAuthAlert('Authentication failed.');
+    }
   });
 
   signupForm.addEventListener('submit', async (e) => {
@@ -1508,9 +1511,10 @@ async function loginUser(user) {
 function updateNavUserProfile(user) {
   const nameEl = document.getElementById('active-user-name');
   const avatarEl = document.getElementById('active-avatar');
-  if (nameEl) nameEl.textContent = user.name;
+  const resolvedName = user.name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'User';
+  if (nameEl) nameEl.textContent = resolvedName;
   if (avatarEl) {
-    const initials = user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+    const initials = resolvedName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
     avatarEl.textContent = initials || 'U';
   }
 }
